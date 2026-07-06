@@ -115,6 +115,23 @@ export async function executePuppeteerSteps(
         }
         case "click": {
           if (!step.selector) throw new Error("Click step missing selector");
+          
+          // Booking.com: If calendar is already open, skip toggling it shut
+          if (step.selector.includes("SearchBoxDesktop") && (step.selector.includes("div:nth-of-type(2)") || step.selector.includes("div:nth-child(2)"))) {
+            const isCalendarOpen = await page.evaluate(() => {
+              const picker = document.querySelector("#calendar-searchboxdatepicker, [data-testid='searchbox-datepicker-calendar']");
+              if (picker) {
+                const rect = picker.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+              }
+              return false;
+            });
+            if (isCalendarOpen) {
+              console.log("[Puppeteer Override] Skipping date toggler click since calendar is already open.");
+              break;
+            }
+          }
+
           let sel = normalizeSelector(step.selector);
           
           // Booking.com calendar date selection normalization override for older recorded APIs
@@ -156,7 +173,21 @@ export async function executePuppeteerSteps(
 
           try {
             await page.waitForSelector(sel, { timeout: 8000 });
-            await page.click(sel);
+            try {
+              await page.click(sel);
+            } catch (clickErr) {
+              console.warn(`[Puppeteer] Native click failed for ${sel}. Trying JS click fallback...`);
+              const jsClicked = await page.evaluate((s) => {
+                const el = document.querySelector(s) as HTMLElement;
+                if (el) {
+                  el.scrollIntoView({ block: "center" });
+                  el.click();
+                  return true;
+                }
+                return false;
+              }, sel);
+              if (!jsClicked) throw clickErr;
+            }
           } catch (err) {
             console.warn(`[Puppeteer] Standard selector failed: ${sel}. Attempting self-healing...`);
             let healed = false;
