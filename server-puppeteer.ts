@@ -81,7 +81,7 @@ export async function executePuppeteerSteps(
 
   // Launch browser with stealth settings
   const browser = await puppeteer.launch({
-    headless: true,
+    headless: "shell",
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
