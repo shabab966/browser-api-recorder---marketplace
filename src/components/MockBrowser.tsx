@@ -57,18 +57,78 @@ export default function MockBrowser({ isRecording, onRecordStep, recordedSteps }
     setInputText(value);
   };
 
-  const handleInputSubmit = (e: React.FormEvent) => {
+  const handleInputSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
     
-    setSearchedText(inputText);
+    const query = inputText.trim();
+    setSearchedText(query);
+    
     if (currentTab === "wikipedia") {
       setWikiResult({
-        title: `${inputText} (Scraped Topic)`,
-        description: `Virtual Scraping Results for "${inputText}". Google Gemini resolved the search on this page, returning detailed content matrices, structural lists, and DOM-parsed text blocks matching selector '.mw-parser-output'.`,
-        lastUpdated: "Recently updated via live recorded action",
-        links: ["Related Node A", "Dynamic Data B", "Index Reference C"]
+        title: `Searching Wikipedia for "${query}"...`,
+        description: "Querying Wikipedia REST API servers in real-time...",
+        lastUpdated: "Loading...",
+        links: []
       });
+
+      try {
+        const summaryRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query.replace(/\s+/g, "_"))}`);
+        if (summaryRes.ok) {
+          const summaryData = await summaryRes.json();
+          
+          let relatedLinks = ["Related Topic X", "Related Topic Y", "Related Topic Z"];
+          try {
+            const searchRes = await fetch(`https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=4&namespace=0&format=json&origin=*`);
+            if (searchRes.ok) {
+              const searchData = await searchRes.json();
+              if (searchData[1] && searchData[1].length > 1) {
+                relatedLinks = searchData[1].filter((t: string) => t.toLowerCase() !== query.toLowerCase()).slice(0, 3);
+              }
+            }
+          } catch (err) {
+            console.error("Related search failed:", err);
+          }
+
+          setWikiResult({
+            title: summaryData.title,
+            description: summaryData.extract || "No article summary details available.",
+            lastUpdated: summaryData.timestamp ? new Date(summaryData.timestamp).toLocaleDateString() : "Recently updated",
+            links: relatedLinks.length > 0 ? relatedLinks : ["No related nodes found."]
+          });
+        } else {
+          const searchRes = await fetch(`https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=4&namespace=0&format=json&origin=*`);
+          if (searchRes.ok) {
+            const searchData = await searchRes.json();
+            if (searchData[1] && searchData[1].length > 0) {
+              const mainTitle = searchData[1][0];
+              const desc = searchData[2][0] || `Search results matching ${query} on Wikipedia.`;
+              const links = searchData[1].slice(1, 4);
+              setWikiResult({
+                title: mainTitle,
+                description: desc,
+                lastUpdated: "Search results",
+                links: links.length > 0 ? links : ["Related Node A", "Dynamic Data B"]
+              });
+            } else {
+              setWikiResult({
+                title: `No article found for "${query}"`,
+                description: "Wikipedia could not find an exact match for this topic. Please try searching for something else like 'Bangladesh', 'Computer science', or 'Google'.",
+                lastUpdated: "N/A",
+                links: ["Return to Main Page"]
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Wikipedia fetch failed, falling back:", err);
+        setWikiResult({
+          title: `${query} (Scraped Topic)`,
+          description: `Virtual Scraping Results for "${query}". Wikipedia search returned simulated results under selector '.mw-parser-output' due to connection timeout.`,
+          lastUpdated: "Recently updated",
+          links: ["Related Node A", "Dynamic Data B", "Index Reference C"]
+        });
+      }
     }
 
     if (isRecording) {
@@ -76,8 +136,8 @@ export default function MockBrowser({ isRecording, onRecordStep, recordedSteps }
         id: "step-" + Math.random().toString(36).substring(2, 9),
         action: "input",
         selector: "#search-input",
-        value: inputText,
-        description: `Input text "${inputText}" into search field`
+        value: query,
+        description: `Input text "${query}" into search field`
       });
       onRecordStep({
         id: "step-" + Math.random().toString(36).substring(2, 9),

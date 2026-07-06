@@ -89,7 +89,7 @@ export default function BkashPortal({ userId, onPaymentSuccess, onClose }: Bkash
           </div>
           <div className="mt-4 flex gap-2">
             <span className="text-2xs uppercase tracking-wider font-mono font-semibold bg-pink-800/40 px-2.5 py-1 rounded">
-              bKash Merchant: +880 1712-345678
+              bKash Merchant: +880 1711-750169
             </span>
           </div>
         </div>
@@ -118,7 +118,7 @@ export default function BkashPortal({ userId, onPaymentSuccess, onClose }: Bkash
                 </p>
                 <ol className="list-decimal list-inside space-y-1 font-sans">
                   <li>Dial <span className="text-white">*247#</span> or open your bKash App.</li>
-                  <li>Perform <span className="font-semibold text-white">Send Money</span> to: <span className="font-mono text-pink-400 font-semibold">+880 1712-345678</span></li>
+                  <li>Perform <span className="font-semibold text-white">Send Money</span> to: <span className="font-mono text-pink-400 font-semibold">+880 1711-750169</span></li>
                   <li>Copy the unique <span className="font-semibold text-white">TrxID</span> from your bKash success message.</li>
                   <li>Paste the details below to complete deposit!</li>
                 </ol>
@@ -195,14 +195,6 @@ export default function BkashPortal({ userId, onPaymentSuccess, onClose }: Bkash
                   )}
                 </button>
 
-                <button
-                  type="button"
-                  onClick={autoFillMockData}
-                  className="w-full py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-300 hover:text-white transition-all cursor-pointer flex items-center justify-center gap-1 text-2xs"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Simulate Send Money & Autofill Sandbox TrxID</span>
-                </button>
               </div>
 
             </form>

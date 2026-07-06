@@ -146,7 +146,7 @@ function loadStore() {
             username: "shabab",
             amount: 50,
             trxId: "BK91A0Z8X",
-            senderNumber: "01712345678",
+            senderNumber: "01711750169",
             status: "approved",
             createdAt: new Date().toISOString(),
           }
@@ -214,24 +214,48 @@ export const dbStore = {
   },
 
   getTransactions: () => store.transactions,
-  addTransaction: (tx: Omit<BkashTransaction, "id" | "status" | "createdAt">): BkashTransaction => {
+  addTransaction: (tx: Omit<BkashTransaction, "id" | "createdAt">): BkashTransaction => {
     const newTx: BkashTransaction = {
       ...tx,
       id: "trx-" + Math.random().toString(36).substring(2, 9),
-      status: "approved", // Auto-approved for frictionless developer experience with simulated bKash SMS matching
       createdAt: new Date().toISOString(),
     };
     
-    // Add amount to user's balance
-    const user = store.users[tx.userId];
-    if (user) {
-      user.balance += tx.amount;
-      store.users[user.id] = user;
+    // Add amount to user's balance only if it's approved
+    if (newTx.status === "approved") {
+      const user = store.users[tx.userId];
+      if (user) {
+        user.balance += tx.amount;
+        store.users[user.id] = user;
+      }
     }
     
     store.transactions.unshift(newTx);
     saveStore();
     return newTx;
+  },
+
+  approveTransaction: (txId: string): BkashTransaction | null => {
+    const tx = store.transactions.find(t => t.id === txId);
+    if (!tx || tx.status !== "pending") return null;
+    
+    tx.status = "approved";
+    const user = store.users[tx.userId];
+    if (user) {
+      user.balance += tx.amount;
+      store.users[user.id] = user;
+    }
+    saveStore();
+    return tx;
+  },
+
+  rejectTransaction: (txId: string): BkashTransaction | null => {
+    const tx = store.transactions.find(t => t.id === txId);
+    if (!tx || tx.status !== "pending") return null;
+    
+    tx.status = "rejected";
+    saveStore();
+    return tx;
   },
 
   getLogs: () => store.logs,

@@ -71,7 +71,7 @@ interface ApiCallLog {
   createdAt: string;
 }
 
-type MainView = "workspace" | "dashboard" | "marketplace";
+type MainView = "workspace" | "dashboard" | "marketplace" | "admin";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(() => {
@@ -79,6 +79,8 @@ export default function App() {
     return saved ? JSON.parse(saved) : null;
   });
   const [activeView, setActiveView] = useState<MainView>("workspace");
+  const [adminTransactions, setAdminTransactions] = useState<BkashTransaction[]>([]);
+  const [adminLoading, setAdminLoading] = useState(false);
 
   // Sync user session to localStorage
   useEffect(() => {
@@ -186,7 +188,7 @@ export default function App() {
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname.substring(1);
-      if (path === "dashboard" || path === "marketplace" || path === "workspace") {
+      if (path === "dashboard" || path === "marketplace" || path === "workspace" || path === "admin") {
         setActiveView(path as MainView);
       }
     };
@@ -194,7 +196,7 @@ export default function App() {
     
     // Initialize view from URL path on load
     const initialPath = window.location.pathname.substring(1);
-    if (initialPath === "dashboard" || initialPath === "marketplace" || initialPath === "workspace") {
+    if (initialPath === "dashboard" || initialPath === "marketplace" || initialPath === "workspace" || initialPath === "admin") {
       setActiveView(initialPath as MainView);
     } else {
       window.history.replaceState(null, "", "/workspace");
@@ -248,6 +250,57 @@ export default function App() {
       console.error("Failed to load dashboard data:", err);
     }
   };
+
+  const fetchAdminTransactions = async () => {
+    setAdminLoading(true);
+    try {
+      const res = await fetch("/api/admin/transactions");
+      if (res.ok) {
+        const data = await res.json();
+        setAdminTransactions(data.transactions);
+      }
+    } catch (err) {
+      console.error("Failed to load admin transactions:", err);
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
+  const handleApproveTransaction = async (txId: string) => {
+    try {
+      const res = await fetch(`/api/admin/transactions/approve/${txId}`, {
+        method: "POST"
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      alert(data.message);
+      fetchAdminTransactions();
+      if (user) fetchDashboardData();
+    } catch (err: any) {
+      alert("Approve failed: " + err.message);
+    }
+  };
+
+  const handleRejectTransaction = async (txId: string) => {
+    try {
+      const res = await fetch(`/api/admin/transactions/reject/${txId}`, {
+        method: "POST"
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      alert(data.message);
+      fetchAdminTransactions();
+      if (user) fetchDashboardData();
+    } catch (err: any) {
+      alert("Reject failed: " + err.message);
+    }
+  };
+
+  useEffect(() => {
+    if (activeView === "admin") {
+      fetchAdminTransactions();
+    }
+  }, [activeView]);
 
   const handleLogin = (authenticatedUser: User) => {
     setUser(authenticatedUser);
@@ -445,6 +498,15 @@ export default function App() {
           >
             <ShoppingBag className="w-3.5 h-3.5" />
             <span>Marketplace</span>
+          </button>
+
+          <button
+            id="nav-admin-btn"
+            onClick={() => { setActiveView("admin"); setExecutionResult(null); }}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${activeView === "admin" ? "bg-rose-600 text-white shadow-lg shadow-rose-600/20" : "text-slate-400 hover:text-slate-200"}`}
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-rose-400" />
+            <span>Admin Portal</span>
           </button>
         </div>
 
@@ -960,6 +1022,115 @@ export default function App() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* VIEW 4: ADMIN PORTAL */}
+        {activeView === "admin" && (
+          <div className="space-y-6 animate-fadeIn">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-rose-500" />
+                  Admin Payment Verification Panel
+                </h2>
+                <p className="text-slate-400 text-sm mt-1 font-sans">
+                  Manually review, approve, or reject incoming user bKash deposits. Approving a request instantly credits the user's wallet.
+                </p>
+              </div>
+              <button
+                onClick={fetchAdminTransactions}
+                disabled={adminLoading}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${adminLoading ? "animate-spin" : ""}`} />
+                <span>Refresh Log</span>
+              </button>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs font-mono">
+                  <thead>
+                    <tr className="bg-slate-950 text-slate-400 border-b border-slate-800">
+                      <th className="p-4 font-bold uppercase tracking-wider">Date</th>
+                      <th className="p-4 font-bold uppercase tracking-wider">User</th>
+                      <th className="p-4 font-bold uppercase tracking-wider">Amount (BDT)</th>
+                      <th className="p-4 font-bold uppercase tracking-wider">Transaction ID</th>
+                      <th className="p-4 font-bold uppercase tracking-wider">Sender Number</th>
+                      <th className="p-4 font-bold uppercase tracking-wider">Status</th>
+                      <th className="p-4 font-bold uppercase tracking-wider text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {adminTransactions.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="p-12 text-center text-slate-500 font-sans">
+                          No transactions found in database store.
+                        </td>
+                      </tr>
+                    ) : (
+                      adminTransactions.map((tx) => (
+                        <tr key={tx.id} className="hover:bg-slate-950/40 transition-colors">
+                          <td className="p-4 text-slate-400 text-2xs">
+                            {new Date(tx.createdAt).toLocaleString()}
+                          </td>
+                          <td className="p-4 font-bold text-white font-sans">
+                            @{tx.username}
+                          </td>
+                          <td className="p-4 font-extrabold text-white text-sm">
+                            {tx.amount} BDT
+                          </td>
+                          <td className="p-4 text-indigo-400 font-bold select-all">
+                            {tx.trxId}
+                          </td>
+                          <td className="p-4 text-slate-300">
+                            {tx.senderNumber}
+                          </td>
+                          <td className="p-4">
+                            {tx.status === "approved" && (
+                              <span className="px-2 py-0.5 rounded text-3xs font-bold border border-emerald-900/50 bg-emerald-950/40 text-emerald-400">
+                                Approved
+                              </span>
+                            )}
+                            {tx.status === "rejected" && (
+                              <span className="px-2 py-0.5 rounded text-3xs font-bold border border-rose-900/50 bg-rose-950/40 text-rose-400">
+                                Rejected
+                              </span>
+                            )}
+                            {tx.status === "pending" && (
+                              <span className="px-2 py-0.5 rounded text-3xs font-bold border border-amber-900/50 bg-amber-950/40 text-amber-400 animate-pulse">
+                                Pending Verification
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-4 text-right">
+                            {tx.status === "pending" ? (
+                              <div className="flex gap-2 justify-end">
+                                <button
+                                  onClick={() => handleRejectTransaction(tx.id)}
+                                  className="px-2.5 py-1 bg-rose-950/40 border border-rose-900/50 hover:bg-rose-900/40 text-rose-400 text-3xs font-bold rounded cursor-pointer transition-all"
+                                >
+                                  Reject
+                                </button>
+                                <button
+                                  onClick={() => handleApproveTransaction(tx.id)}
+                                  className="px-2.5 py-1 bg-emerald-950/40 border border-emerald-900/50 hover:bg-emerald-900/40 text-emerald-400 text-3xs font-bold rounded cursor-pointer transition-all"
+                                >
+                                  Approve
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-3xs text-slate-600 italic">No Actions</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 

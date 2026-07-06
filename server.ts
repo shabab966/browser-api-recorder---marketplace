@@ -66,9 +66,39 @@ async function startServer() {
       amount: parsedAmount,
       trxId: trxId.trim().toUpperCase(),
       senderNumber: senderNumber.trim(),
+      status: "pending",
     });
 
-    return res.json({ message: `Successfully topped up ${parsedAmount} BDT via bKash!`, transaction: tx, user: dbStore.getUser(userId) });
+    return res.json({ 
+      message: `Successfully submitted deposit request of ${parsedAmount} BDT! Please wait for admin verification.`, 
+      transaction: tx, 
+      user: dbStore.getUser(userId) 
+    });
+  });
+
+  // Admin: Get all transactions
+  app.get("/api/admin/transactions", (req, res) => {
+    return res.json({ transactions: dbStore.getTransactions() });
+  });
+
+  // Admin: Approve transaction
+  app.post("/api/admin/transactions/approve/:txId", (req, res) => {
+    const { txId } = req.params;
+    const tx = dbStore.approveTransaction(txId);
+    if (!tx) {
+      return res.status(404).json({ error: "Transaction not found or already verified." });
+    }
+    return res.json({ message: "Transaction approved successfully!", transaction: tx });
+  });
+
+  // Admin: Reject transaction
+  app.post("/api/admin/transactions/reject/:txId", (req, res) => {
+    const { txId } = req.params;
+    const tx = dbStore.rejectTransaction(txId);
+    if (!tx) {
+      return res.status(404).json({ error: "Transaction not found or already verified." });
+    }
+    return res.json({ message: "Transaction rejected successfully!", transaction: tx });
   });
 
   // Recorder: LLM Clarify
