@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { dbStore } from "./server-state.js";
 import { clarifyRecordedApi, simulateApiExecution } from "./server-gemini.js";
+import { executePuppeteerSteps } from "./server-puppeteer.js";
 
 async function startServer() {
   const app = express();
@@ -98,7 +99,20 @@ async function startServer() {
     if (!tx) {
       return res.status(404).json({ error: "Transaction not found or already verified." });
     }
-    return res.json({ message: "Transaction rejected successfully!", transaction: tx });
+  });
+
+  // Admin: Delete/Remove API from marketplace
+  app.post("/api/admin/apis/delete", (req, res) => {
+    const { apiId } = req.body;
+    if (!apiId) {
+      return res.status(400).json({ error: "Missing apiId in delete request." });
+    }
+    const apiExists = dbStore.getApi(apiId);
+    if (!apiExists) {
+      return res.status(404).json({ error: "API not found in database." });
+    }
+    dbStore.deleteApi(apiId);
+    return res.json({ message: "API successfully removed from the marketplace!" });
   });
 
   // Recorder: LLM Clarify
@@ -142,6 +156,12 @@ async function startServer() {
     });
 
     return res.json({ message: "API successfully saved and registered!", api: newApi });
+  });
+
+  // Admin: Get all registered APIs
+  app.get("/api/apis", (req, res) => {
+    const apis = dbStore.getApis();
+    return res.json(apis);
   });
 
   // API: Get personal APIs
@@ -223,10 +243,20 @@ async function startServer() {
       }
     }
 
-    // Run the scenario using our Gemini browser simulation agent!
+    // Run the scenario using our selected scraper engine
+    const engine = req.body.engine || req.query.engine || "gemini";
     const startTime = Date.now();
     try {
-      const result = await simulateApiExecution(apiItem.steps, parameters || {});
+      let result;
+      if (engine === "puppeteer") {
+        result = await executePuppeteerSteps(
+          apiItem.steps,
+          parameters || {},
+          apiItem.clarifications?.dynamicParameters || []
+        );
+      } else {
+        result = await simulateApiExecution(apiItem.steps, parameters || {});
+      }
       const executionTimeMs = Date.now() - startTime;
 
       // Update API stats
