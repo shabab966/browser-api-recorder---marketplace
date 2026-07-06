@@ -109,26 +109,85 @@ Provide a structured JSON output with the exact schema. Do not output anything e
     
     const capitalizedDomain = detectedDomain.charAt(0).toUpperCase() + detectedDomain.slice(1);
     
+    let explanation = `A custom browser automation API that navigates pages, interacts with elements, and extracts structured data from ${detectedDomain}.`;
+    let dynamicParams = [
+      {
+        name: "search",
+        type: "string",
+        description: `Search query parameter for ${capitalizedDomain}`,
+        defaultValue: "technology"
+      },
+      {
+        name: "limit",
+        type: "number",
+        description: "Maximum number of results to scrape",
+        defaultValue: "10"
+      }
+    ];
+
+    if (detectedDomain.includes("booking.com")) {
+      explanation = "This API automates the process of searching for hotel accommodations on Booking.com for a specific destination, dynamic dates, and guest counts, and then navigates to a selected hotel from the search results.";
+      dynamicParams = [
+        {
+          name: "destination",
+          type: "string",
+          description: "The target city, region, or landmark for the hotel search.",
+          defaultValue: "Kuala Lumpur"
+        },
+        {
+          name: "checkin",
+          type: "string",
+          description: "The check-in date in YYYY-MM-DD format.",
+          defaultValue: "2026-07-17"
+        },
+        {
+          name: "checkout",
+          type: "string",
+          description: "The check-out date in YYYY-MM-DD format.",
+          defaultValue: "2026-08-11"
+        },
+        {
+          name: "adults",
+          type: "number",
+          description: "The total number of adult guests.",
+          defaultValue: "3"
+        }
+      ];
+    } else if (detectedDomain.includes("amazon")) {
+      explanation = "This API automates product price and stock queries on Amazon by navigating to specified listing details and extracting item parameters.";
+      dynamicParams = [
+        {
+          name: "product_id",
+          type: "string",
+          description: "Amazon product ASIN or unique identifier to scrape.",
+          defaultValue: "B08H27F9H2"
+        },
+        {
+          name: "marketplace",
+          type: "string",
+          description: "Amazon regional country domain index.",
+          defaultValue: "US"
+        }
+      ];
+    } else if (detectedDomain.includes("wikipedia")) {
+      explanation = "This API searches Wikipedia for specific encyclopedic articles, queries related indexes, and extracts parsed summary metadata fields.";
+      dynamicParams = [
+        {
+          name: "search",
+          type: "string",
+          description: "Encyclopedic article name to retrieve.",
+          defaultValue: "Bangladesh"
+        }
+      ];
+    }
+
     return {
-      explanation: `A custom browser automation API that navigates pages, interacts with elements, and extracts structured data from ${detectedDomain}.`,
+      explanation,
       questions: [
         "Would you like to customize dynamic search fields for this scraper?",
         "Should we enable automated pagination to fetch multiple pages?"
       ],
-      dynamicParameters: [
-        {
-          name: detectedParam,
-          type: "string",
-          description: `Search keyword or parameter query for ${capitalizedDomain}`,
-          defaultValue: detectedValue
-        },
-        {
-          name: "limit",
-          type: "number",
-          description: "Maximum number of results to scrape",
-          defaultValue: "10"
-        }
-      ]
+      dynamicParameters: dynamicParams
     };
   }
 }
