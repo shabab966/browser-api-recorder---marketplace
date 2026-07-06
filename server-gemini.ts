@@ -115,7 +115,7 @@ Provide a structured JSON output with the exact schema. Do not output anything e
         name: "search",
         type: "string",
         description: `Search query parameter for ${capitalizedDomain}`,
-        defaultValue: "technology"
+        defaultValue: detectedValue !== "data" ? detectedValue : "technology"
       },
       {
         name: "limit",
@@ -132,7 +132,7 @@ Provide a structured JSON output with the exact schema. Do not output anything e
           name: "destination",
           type: "string",
           description: "The target city, region, or landmark for the hotel search.",
-          defaultValue: "Kuala Lumpur"
+          defaultValue: detectedValue !== "data" ? detectedValue : "Kuala Lumpur"
         },
         {
           name: "checkin",
