@@ -1,0 +1,6 @@
+{
+  "name": "Browser API Recorder & Marketplace",
+  "description": "An advanced full-stack platform to record Google Chrome browser actions, clarify them using LLM, publish as private or shared APIs, and run or trade them using a bKash billing engine.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

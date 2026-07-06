@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 320px;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      margin: 0;
+    }
+    h3 {
+      margin-top: 0;
+      color: #6366f1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 16px;
+    }
+    .status-container {
+      background: #1e293b;
+      padding: 8px 12px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .status-badge {
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: bold;
+      text-transform: uppercase;
+      font-size: 10px;
+    }
+    .status-idle { background: #475569; color: #f8fafc; }
+    .status-recording { background: #ef4444; color: white; animation: pulse 1.5s infinite; }
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      margin: 6px 0;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.2s;
+    }
+    .btn-rec { background: #ef4444; color: white; }
+    .btn-rec:hover { background: #dc2626; }
+    .btn-stop { background: #475569; color: white; }
+    .btn-stop:hover { background: #334155; }
+    .btn-sync { background: #10b981; color: white; }
+    .btn-sync:hover { background: #059669; }
+    .btn-clear { background: #e2e8f0; color: #0f172a; }
+    .btn-clear:hover { background: #cbd5e1; }
+    
+    .steps-container {
+      margin-top: 12px;
+      border-top: 1px solid #334155;
+      padding-top: 12px;
+    }
+    .steps-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 6px;
+      font-weight: bold;
+    }
+    .steps-list {
+      max-height: 120px;
+      overflow-y: auto;
+      font-size: 11px;
+      padding: 0;
+      margin: 0;
+      list-style: none;
+    }
+    .step-item {
+      background: #1e293b;
+      padding: 6px 8px;
+      border-radius: 4px;
+      margin-bottom: 4px;
+      font-family: monospace;
+      color: #cbd5e1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .empty-steps {
+      color: #64748b;
+      font-style: italic;
+      font-size: 11px;
+      text-align: center;
+      padding: 10px 0;
+    }
+    .message {
+      font-size: 11px;
+      margin-top: 6px;
+      text-align: center;
+      min-height: 15px;
+    }
+    .success-msg { color: #10b981; }
+    .error-msg { color: #f87171; }
+  </style>
+</head>
+<body>
+  <h3>🔌 API Recorder Pro</h3>
+  
+  <div class="status-container">
+    <span>Status:</span>
+    <span id="statusBadge" class="status-badge status-idle">Idle</span>
+  </div>
+
+  <button id="recBtn" class="btn-rec">🔴 Start Recording</button>
+  <button id="syncBtn" class="btn-sync" disabled>💾 Send to Marketplace</button>
+  <button id="clearBtn" class="btn-clear">🧹 Clear Steps</button>
+  
+  <div id="msgBox" class="message"></div>
+
+  <div class="steps-container">
+    <div class="steps-title">Recorded Steps (<span id="stepCount">0</span>)</div>
+    <ul id="stepsList" class="steps-list">
+      <div class="empty-steps">No steps recorded yet. Click Start Recording and click around a website.</div>
+    </ul>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
