@@ -22,6 +22,13 @@ export default function MockBrowser({ isRecording, onRecordStep, recordedSteps }
     links: ["Gemini 3.5 Flash", "Antigravity Agent", "Model Playground"]
   });
 
+  const [isEditingUrl, setIsEditingUrl] = useState(false);
+  const [urlInputText, setUrlInputText] = useState("https://news.ycombinator.com");
+
+  useEffect(() => {
+    setUrlInputText(url);
+  }, [url]);
+
   // Track page change to match URL
   useEffect(() => {
     if (currentTab === "hn") {
@@ -44,11 +51,30 @@ export default function MockBrowser({ isRecording, onRecordStep, recordedSteps }
 
   const handleElementAction = (action: "click" | "scrape", selector: string, description: string) => {
     if (!isRecording) return;
+    
+    let label: string | null = null;
+    let finalDesc = description;
+    
+    if (action === "scrape") {
+      label = prompt("Enter a JSON key name to label this scraped data (e.g. product_name, price, score):");
+      if (!label) {
+        alert("Scrape action canceled (label is required to structure JSON output).");
+        return;
+      }
+      label = label.trim().replace(/[^a-zA-Z0-9_]/g, "");
+      if (!label) {
+        alert("Invalid label. Use only letters, numbers, and underscores.");
+        return;
+      }
+      finalDesc = `Scrape elements matching selector ${selector} and label output as "${label}"`;
+    }
+
     onRecordStep({
       id: "step-" + Math.random().toString(36).substring(2, 9),
       action,
       selector,
-      description
+      description: finalDesc,
+      ...(label ? { label } : {})
     });
   };
 
@@ -149,6 +175,23 @@ export default function MockBrowser({ isRecording, onRecordStep, recordedSteps }
     setInputText("");
   };
 
+  const handleUrlSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanUrl = urlInputText.trim().toLowerCase();
+    
+    if (cleanUrl.includes("wikipedia") || cleanUrl.includes("wiki")) {
+      setCurrentTab("wikipedia");
+    } else if (cleanUrl.includes("amazon") || cleanUrl.includes("amzn")) {
+      setCurrentTab("amazon");
+    } else if (cleanUrl.includes("ycombinator") || cleanUrl.includes("news") || cleanUrl.includes("hn")) {
+      setCurrentTab("hn");
+    } else {
+      alert("This Sandbox Emulator only supports news.ycombinator.com, amazon.com, and wikipedia.org.\n\nTo record scraper scenarios on any real live website, please download and use our Chrome/Edge Extension shown below!");
+      setUrlInputText(url);
+    }
+    setIsEditingUrl(false);
+  };
+
   return (
     <div id="browser-sandbox-container" className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden flex flex-col h-[640px]">
       {/* Chrome Style Top Bar */}
@@ -193,10 +236,34 @@ export default function MockBrowser({ isRecording, onRecordStep, recordedSteps }
         </div>
 
         {/* URL Bar */}
-        <div className="flex-1 bg-slate-900/90 border border-slate-800 rounded-lg px-3 py-1.5 flex items-center gap-2 text-slate-400 text-xs font-mono select-none overflow-hidden max-w-xl">
-          <Chrome className="w-3.5 h-3.5 text-slate-500" />
-          <span className="text-emerald-500">https://</span>
-          <span className="text-slate-200 truncate">{url.replace("https://", "")}</span>
+        <div className="flex-1 max-w-xl">
+          {isEditingUrl ? (
+            <form onSubmit={handleUrlSubmit} className="w-full flex">
+              <input
+                type="text"
+                value={urlInputText}
+                onChange={(e) => setUrlInputText(e.target.value)}
+                onBlur={() => {
+                  setTimeout(() => {
+                    setIsEditingUrl(false);
+                    setUrlInputText(url);
+                  }, 200);
+                }}
+                autoFocus
+                className="w-full bg-slate-900 border border-indigo-500 rounded-lg px-3 py-1 text-slate-200 text-xs font-mono focus:outline-none"
+              />
+            </form>
+          ) : (
+            <div 
+              onClick={() => setIsEditingUrl(true)}
+              className="w-full bg-slate-900/90 border border-slate-800 hover:border-slate-700 rounded-lg px-3 py-1.5 flex items-center gap-2 text-slate-400 text-xs font-mono select-none overflow-hidden cursor-text transition-all"
+              title="Click to type custom URL"
+            >
+              <Chrome className="w-3.5 h-3.5 text-slate-500" />
+              <span className="text-emerald-500">https://</span>
+              <span className="text-slate-200 truncate">{url.replace("https://", "")}</span>
+            </div>
+          )}
         </div>
 
         <div className="text-xs text-indigo-400 font-mono flex items-center gap-1 shrink-0 font-semibold bg-indigo-950/40 px-2 py-1 rounded border border-indigo-900/60">

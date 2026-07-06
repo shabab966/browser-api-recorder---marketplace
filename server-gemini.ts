@@ -110,13 +110,19 @@ export async function simulateApiExecution(steps: BrowserStep[], params: Record<
 You are simulating a headless browser scraping engine executing a recorded browser automation macro.
 Given the steps below and the user's custom runtime parameters, execute the steps mentally and return a highly realistic JSON scraping response that matches what a browser would extract from those pages.
 
+CRITICAL FORMATTING INSTRUCTION:
+Some recorded steps of action "scrape" have a custom "label" field (for example: label = "product_name" or "live_price").
+You MUST structure the output JSON response so that it is a clean, organized object or array of objects where the scraped fields are mapped EXACTLY to these custom label keys!
+For example, if you scrape a title block with label "title" and a price block with label "price", the response records MUST look like:
+{ "title": "...", "price": "..." }
+Do not return raw unstructured texts. Use the labels as the JSON keys for the extracted records. Make the data align naturally with the query parameters.
+
 Recorded Steps:
 ${JSON.stringify(steps, null, 2)}
 
 User's Query Parameters:
 ${JSON.stringify(params, null, 2)}
 
-Produce a clean JSON result representing the scraped output. For example, if scraping Hacker News, return a list of story items. If a product page, return product info. Make the data align naturally with the query parameters (e.g. if a search query is passed, make the titles relevant).
 Do not add any explanations or comments, only return the raw JSON object/array.
 `;
 
