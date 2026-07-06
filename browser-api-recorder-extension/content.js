@@ -40,12 +40,66 @@ function getCssSelector(el) {
   return path.join(" > ");
 }
 
+// Intercept input / text modifications dynamically
+let inputTimeout = null;
+let lastInputSelector = null;
+let lastInputValue = "";
+
+// Send the accumulated input value to background script
+function sendPendingInput(element, selector, val) {
+  if (!val) return;
+  const nameOrPlaceholder = element.getAttribute("placeholder") || element.getAttribute("name") || element.tagName.toLowerCase();
+  const description = `Input "${val}" into [${nameOrPlaceholder}]`;
+  
+  chrome.runtime.sendMessage({
+    type: "CAPTURE_DOM_STEP",
+    action: "input",
+    selector: selector,
+    value: val,
+    description: description,
+    url: window.location.href
+  });
+  
+  lastInputSelector = null;
+  lastInputValue = "";
+}
+
+// Intercept input events as the user types
+document.addEventListener("input", (event) => {
+  if (!isRecording) return;
+  
+  const element = event.target;
+  if (element.tagName === "INPUT" || element.tagName === "TEXTAREA" || element.tagName === "SELECT") {
+    const selector = getCssSelector(element);
+    const val = element.value;
+    
+    lastInputSelector = selector;
+    lastInputValue = val;
+    
+    clearTimeout(inputTimeout);
+    inputTimeout = setTimeout(() => {
+      sendPendingInput(element, selector, val);
+    }, 600);
+  }
+}, true);
+
 // Intercept click events
 document.addEventListener("click", (event) => {
   if (!isRecording) return;
   
+  // Flush any pending text input first
+  if (lastInputSelector && lastInputValue) {
+    clearTimeout(inputTimeout);
+    const el = document.querySelector(lastInputSelector);
+    if (el) {
+      sendPendingInput(el, lastInputSelector, lastInputValue);
+    } else {
+      lastInputSelector = null;
+      lastInputValue = "";
+    }
+  }
+
   const element = event.target;
-  // Ignore clicks inside extension popups
   if (element.closest("#chrome-extension-guide")) return;
   
   const selector = getCssSelector(element);
@@ -61,26 +115,4 @@ document.addEventListener("click", (event) => {
     description: description,
     url: window.location.href
   });
-}, true);
-
-// Intercept input / change events
-document.addEventListener("change", (event) => {
-  if (!isRecording) return;
-  
-  const element = event.target;
-  if (element.tagName === "INPUT" || element.tagName === "TEXTAREA" || element.tagName === "SELECT") {
-    const selector = getCssSelector(element);
-    const nameOrPlaceholder = element.getAttribute("placeholder") || element.getAttribute("name") || element.tagName.toLowerCase();
-    const val = element.value;
-    const description = `Input "${val}" into [${nameOrPlaceholder}]`;
-    
-    chrome.runtime.sendMessage({
-      type: "CAPTURE_DOM_STEP",
-      action: "input",
-      selector: selector,
-      value: val,
-      description: description,
-      url: window.location.href
-    });
-  }
 }, true);
