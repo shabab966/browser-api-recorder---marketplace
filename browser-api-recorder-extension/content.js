@@ -16,27 +16,62 @@ chrome.storage.onChanged.addListener((changes) => {
 // Helper to compute a CSS selector for an element
 function getCssSelector(el) {
   if (!(el instanceof Element)) return "";
+  
+  // 1. Check for data-testid/data-id/data-target attributes immediately (highly stable)
+  const testId = el.getAttribute("data-testid") || el.getAttribute("data-id") || el.getAttribute("data-target");
+  if (testId) {
+    const attrName = el.getAttribute("data-testid") ? "data-testid" : (el.getAttribute("data-id") ? "data-id" : "data-target");
+    return `${el.nodeName.toLowerCase()}[${attrName}="${testId}"]`;
+  }
+  
   const path = [];
-  while (el && el.nodeType === Node.ELEMENT_NODE) {
-    let selector = el.nodeName.toLowerCase();
-    if (el.id) {
-      selector += '#' + el.id;
+  let currentEl = el;
+  while (currentEl && currentEl.nodeType === Node.ELEMENT_NODE) {
+    let selector = currentEl.nodeName.toLowerCase();
+    
+    // Check if it has a unique ID (excluding React dynamic colons)
+    if (currentEl.id && !currentEl.id.includes(":") && !/^\d/.test(currentEl.id)) {
+      selector += '#' + currentEl.id;
       path.unshift(selector);
       break;
-    } else {
-      let sib = el, nth = 1;
-      while (sib = sib.previousElementSibling) {
-        if (sib.nodeName.toLowerCase() === el.nodeName.toLowerCase()) {
-          nth++;
-        }
-      }
-      if (nth > 1) {
-        selector += `:nth-of-type(${nth})`;
+    } 
+    
+    // Check if it has a unique class name
+    let hasUniqueClass = false;
+    if (currentEl.className && typeof currentEl.className === "string") {
+      const classes = currentEl.className.trim().split(/\s+/).filter(c => c && !c.includes(":") && !c.startsWith("css-") && !c.startsWith("ssr-"));
+      for (const cls of classes) {
+        const query = currentEl.nodeName.toLowerCase() + "." + cls;
+        try {
+          const matches = document.querySelectorAll(query);
+          if (matches.length === 1) {
+            selector = query;
+            hasUniqueClass = true;
+            break;
+          }
+        } catch (e) {}
       }
     }
+    
+    if (hasUniqueClass) {
+      path.unshift(selector);
+      break;
+    }
+
+    let sib = currentEl, nth = 1;
+    while (sib = sib.previousElementSibling) {
+      if (sib.nodeName.toLowerCase() === currentEl.nodeName.toLowerCase()) {
+        nth++;
+      }
+    }
+    if (nth > 1) {
+      selector += `:nth-of-type(${nth})`;
+    }
+    
     path.unshift(selector);
-    el = el.parentNode;
+    currentEl = currentEl.parentNode;
   }
+  
   return path.join(" > ");
 }
 

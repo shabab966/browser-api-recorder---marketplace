@@ -115,9 +115,35 @@ export async function executePuppeteerSteps(
         case "click": {
           if (!step.selector) throw new Error("Click step missing selector");
           const sel = normalizeSelector(step.selector);
-          await page.waitForSelector(sel, { timeout: 10000 });
-          await page.click(sel);
-          // Wait after click for page to settle
+          try {
+            await page.waitForSelector(sel, { timeout: 8000 });
+            await page.click(sel);
+          } catch (err) {
+            console.warn(`[Puppeteer] Standard selector failed: ${sel}. Attempting self-healing...`);
+            let healed = false;
+            if (step.description) {
+              const textMatch = step.description.match(/containing "([^"]+)"/);
+              const tagMatch = step.description.match(/<([a-zA-Z0-9_-]+)>/);
+              if (textMatch) {
+                const targetText = textMatch[1];
+                const targetTag = tagMatch ? tagMatch[1] : "*";
+                console.log(`[Puppeteer] Self-healing: Searching for <${targetTag}> containing "${targetText}"`);
+                healed = await page.evaluate((tag, text) => {
+                  const elements = Array.from(document.querySelectorAll(tag));
+                  const match = elements.find(el => (el.textContent || "").trim().includes(text));
+                  if (match) {
+                    (match as HTMLElement).click();
+                    return true;
+                  }
+                  return false;
+                }, targetTag, targetText);
+              }
+            }
+            if (!healed) {
+              throw err;
+            }
+            console.log(`[Puppeteer] Self-healing successful! clicked matching text element.`);
+          }
           await new Promise((r) => setTimeout(r, 1000 + Math.random() * 1000));
           break;
         }
