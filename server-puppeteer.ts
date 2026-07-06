@@ -102,6 +102,7 @@ export async function executePuppeteerSteps(
     );
 
     const scrapedResults: Record<string, string[]> = {};
+    let dateClickCount = 0;
 
     for (const step of resolvedSteps) {
       console.log(`[Puppeteer] Executing action "${step.action}": ${step.description}`);
@@ -114,7 +115,45 @@ export async function executePuppeteerSteps(
         }
         case "click": {
           if (!step.selector) throw new Error("Click step missing selector");
-          const sel = normalizeSelector(step.selector);
+          let sel = normalizeSelector(step.selector);
+          
+          // Booking.com calendar date selection normalization override for older recorded APIs
+          if (step.selector.includes("calendar-searchboxdatepicker")) {
+            dateClickCount++;
+            const targetDate = dateClickCount === 1 ? params.checkin : params.checkout;
+            if (targetDate) {
+              console.log(`[Puppeteer Override] Mapping calendar click to target date: ${targetDate}`);
+              sel = `[data-date="${targetDate}"], td[data-date="${targetDate}"], span[data-date="${targetDate}"]`;
+              
+              try {
+                // Check if element is already present in DOM
+                const exists = await page.evaluate((s) => !!document.querySelector(s), sel);
+                if (!exists) {
+                  console.log(`[Puppeteer Override] Date element not visible. Navigating calendar months...`);
+                  // Click next button up to 4 times
+                  for (let m = 0; m < 4; m++) {
+                    const nextBtn = 'button[aria-label="Next month"], div[class*="next-button"], .bui-calendar__control--next';
+                    const nextExists = await page.evaluate((nb) => {
+                      const btn = document.querySelector(nb) as HTMLElement;
+                      if (btn) { btn.click(); return true; }
+                      return false;
+                    }, nextBtn);
+                    if (!nextExists) break;
+                    await new Promise((r) => setTimeout(r, 600));
+                    // Check if date element appeared
+                    const appeared = await page.evaluate((s) => !!document.querySelector(s), sel);
+                    if (appeared) {
+                      console.log(`[Puppeteer Override] Found target date element after calendar navigation.`);
+                      break;
+                    }
+                  }
+                }
+              } catch (e) {
+                console.error("Calendar navigation error:", e);
+              }
+            }
+          }
+
           try {
             await page.waitForSelector(sel, { timeout: 8000 });
             await page.click(sel);
