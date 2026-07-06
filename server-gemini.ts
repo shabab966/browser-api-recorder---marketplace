@@ -79,19 +79,48 @@ Provide a structured JSON output with the exact schema. Do not output anything e
     return JSON.parse(response.text.trim());
   } catch (error) {
     console.error("Gemini API clarification error:", error);
-    // Fallback if API fails or key is unconfigured
+    
+    let detectedDomain = "Web Scraper";
+    let detectedParam = "search";
+    let detectedValue = "data";
+    
+    const navigateStep = steps.find(s => s.action === "navigate");
+    if (navigateStep && navigateStep.url) {
+      try {
+        const u = new URL(navigateStep.url);
+        detectedDomain = u.hostname.replace("www.", "");
+      } catch (e) {
+        const match = navigateStep.url.match(/https?:\/\/(?:www\.)?([^\/]+)/);
+        if (match) detectedDomain = match[1];
+      }
+    }
+    
+    const inputStep = steps.find(s => s.action === "input");
+    if (inputStep) {
+      if (inputStep.selector) {
+        if (inputStep.selector.includes("ss") || inputStep.selector.includes("dest") || inputStep.selector.includes("query") || inputStep.selector.includes("search")) {
+          detectedParam = "destination";
+        }
+      }
+      if (inputStep.value) {
+        detectedValue = inputStep.value;
+      }
+    }
+    
+    const capitalizedDomain = detectedDomain.charAt(0).toUpperCase() + detectedDomain.slice(1);
+    
     return {
-      explanation: "A custom browser automation API that navigates pages, interacts with elements, and extracts structured data.",
+      explanation: `A custom browser automation API that navigates pages, interacts with elements, and extracts structured data from ${detectedDomain}.`,
       questions: [
         "Would you like to customize dynamic search fields for this scraper?",
         "Should we enable automated pagination to fetch multiple pages?"
       ],
       dynamicParameters: [
         {
-          name: "search",
+          name: detectedParam,
           type: "string",
-          description: "Search keyword or category to query",
-          defaultValue: "technology"
+          description: `Search keyword or parameter query for ${capitalizedDomain}`,
+          defaultValue: detectedValue
         },
         {
           name: "limit",
