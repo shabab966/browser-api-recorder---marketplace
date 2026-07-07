@@ -7,14 +7,15 @@ interface LoginScreenProps {
 
 export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [isSigningUp, setIsSigningUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim()) {
-      setError("Username cannot be empty");
+    if (!username.trim() || !password) {
+      setError("Username and password are required");
       return;
     }
 
@@ -26,7 +27,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: username.trim() }),
+        body: JSON.stringify({ username: username.trim(), password }),
       });
 
       const data = await response.json();
@@ -34,6 +35,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         throw new Error(data.error || "Authentication failed");
       }
 
+      localStorage.setItem("authToken", data.token);
       onLoginSuccess(data.user);
     } catch (err: any) {
       setError(err.message || "Something went wrong. Please try again.");
@@ -45,24 +47,27 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const loadDemoUser = async (demoName: string) => {
     setError(null);
     setLoading(true);
+    const demoPass = "shabab_demo_pass";
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: demoName }),
+        body: JSON.stringify({ username: demoName, password: demoPass }),
       });
       const data = await response.json();
       if (response.ok) {
+        localStorage.setItem("authToken", data.token);
         onLoginSuccess(data.user);
       } else {
         // Sign up if demo doesn't exist
         const registerResponse = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: demoName }),
+          body: JSON.stringify({ username: demoName, password: demoPass }),
         });
         const registerData = await registerResponse.json();
         if (registerResponse.ok) {
+          localStorage.setItem("authToken", registerData.token);
           onLoginSuccess(registerData.user);
         } else {
           throw new Error(registerData.error);
@@ -102,21 +107,40 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 font-mono">
-              Username or Email
-            </label>
-            <div className="relative">
-              <input
-                id="username-input"
-                type="text"
-                placeholder="Enter your username (e.g., shabab)"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all font-mono"
-                required
-              />
-              <KeyRound className="absolute right-3 top-3.5 w-4 h-4 text-slate-600" />
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 font-mono">
+                Username or Email
+              </label>
+              <div className="relative">
+                <input
+                  id="username-input"
+                  type="text"
+                  placeholder="Enter your username (e.g., shabab)"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all font-mono"
+                  required
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 font-mono">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  id="password-input"
+                  type="password"
+                  placeholder="Enter your secure password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all font-mono"
+                  required
+                />
+                <KeyRound className="absolute right-3 top-3.5 w-4 h-4 text-slate-600" />
+              </div>
             </div>
           </div>
 

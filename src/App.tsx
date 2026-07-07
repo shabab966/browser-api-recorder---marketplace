@@ -10,6 +10,15 @@ import {
   PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area 
 } from "recharts";
 import LoginScreen from "./components/LoginScreen.js";
+
+const apiFetch = async (url: string, options: any = {}) => {
+  const token = localStorage.getItem("authToken");
+  const headers = { ...options.headers };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  return fetch(url, { ...options, headers });
+};
 import MockBrowser from "./components/MockBrowser.js";
 import BkashPortal from "./components/BkashPortal.js";
 import ChromeExtensionCard from "./components/ChromeExtensionCard.js";
@@ -264,7 +273,7 @@ async function runScraper() {
           // Trigger the clarify API automatically
           setClarifyLoading(true);
           try {
-            const response = await fetch("/api/recorder/clarify", {
+            const response = await apiFetch("/api/recorder/clarify", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ steps }),
@@ -326,7 +335,7 @@ async function runScraper() {
     if (!user) return;
     try {
       // Fetch user profile to keep balance updated
-      const profileRes = await fetch(`/api/auth/me/${user.id}`);
+      const profileRes = await apiFetch(`/api/auth/me/${user.id}`);
       if (profileRes.ok) {
         const profileData = await profileRes.json();
         setUser(profileData.user);
@@ -336,35 +345,35 @@ async function runScraper() {
       }
 
       // Fetch personal APIs
-      const myRes = await fetch(`/api/apis/my/${user.id}`);
+      const myRes = await apiFetch(`/api/apis/my/${user.id}`);
       if (myRes.ok) {
         const myData = await myRes.json();
         setMyApis(myData.apis);
       }
 
       // Fetch Marketplace APIs
-      const marketRes = await fetch("/api/apis/marketplace");
+      const marketRes = await apiFetch("/api/apis/marketplace");
       if (marketRes.ok) {
         const marketData = await marketRes.json();
         setMarketplaceApis(marketData.apis);
       }
 
       // Fetch Schedules
-      const schedRes = await fetch(`/api/schedules/${user.id}`);
+      const schedRes = await apiFetch(`/api/schedules/${user.id}`);
       if (schedRes.ok) {
         const schedData = await schedRes.json();
         setSchedules(schedData.schedules || []);
       }
 
       // Fetch Logs
-      const logsRes = await fetch(`/api/logs/${user.id}`);
+      const logsRes = await apiFetch(`/api/logs/${user.id}`);
       if (logsRes.ok) {
         const logsData = await logsRes.json();
         setCallLogs(logsData.logs);
       }
 
       // Fetch Transactions
-      const txRes = await fetch(`/api/transactions/${user.id}`);
+      const txRes = await apiFetch(`/api/transactions/${user.id}`);
       if (txRes.ok) {
         const txData = await txRes.json();
         setTransactions(txData.transactions);
@@ -377,7 +386,7 @@ async function runScraper() {
   const fetchAdminTransactions = async () => {
     setAdminLoading(true);
     try {
-      const res = await fetch("/api/admin/transactions");
+      const res = await apiFetch("/api/admin/transactions");
       if (res.ok) {
         const data = await res.json();
         setAdminTransactions(data.transactions);
@@ -391,7 +400,7 @@ async function runScraper() {
 
   const handleApproveTransaction = async (txId: string) => {
     try {
-      const res = await fetch(`/api/admin/transactions/approve/${txId}`, {
+      const res = await apiFetch(`/api/admin/transactions/approve/${txId}`, {
         method: "POST"
       });
       const data = await res.json();
@@ -406,7 +415,7 @@ async function runScraper() {
 
   const handleRejectTransaction = async (txId: string) => {
     try {
-      const res = await fetch(`/api/admin/transactions/reject/${txId}`, {
+      const res = await apiFetch(`/api/admin/transactions/reject/${txId}`, {
         method: "POST"
       });
       const data = await res.json();
@@ -425,7 +434,7 @@ async function runScraper() {
   const fetchAdminApis = async () => {
     setAdminApisLoading(true);
     try {
-      const res = await fetch("/api/apis");
+      const res = await apiFetch("/api/apis");
       if (res.ok) {
         const data = await res.json();
         setAdminApis(data);
@@ -440,7 +449,7 @@ async function runScraper() {
   const handleAdminDeleteApi = async (apiId: string) => {
     if (!confirm("Are you sure you want to permanently remove this API from the marketplace?")) return;
     try {
-      const res = await fetch("/api/admin/apis/delete", {
+      const res = await apiFetch("/api/admin/apis/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ apiId }),
@@ -508,7 +517,7 @@ async function runScraper() {
 
     setClarifyLoading(true);
     try {
-      const response = await fetch("/api/recorder/clarify", {
+      const response = await apiFetch("/api/recorder/clarify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ steps: recordedSteps }),
@@ -533,7 +542,7 @@ async function runScraper() {
     if (!user || !clarificationResult) return;
 
     try {
-      const response = await fetch("/api/apis/create", {
+      const response = await apiFetch("/api/apis/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -582,7 +591,7 @@ async function runScraper() {
     }
     setScheduleLoading(true);
     try {
-      const res = await fetch("/api/schedules/create", {
+      const res = await apiFetch("/api/schedules/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -611,7 +620,7 @@ async function runScraper() {
   const handleDeleteSchedule = async (id: string) => {
     if (!confirm("Are you sure you want to delete this schedule?")) return;
     try {
-      await fetch(`/api/schedules/delete/${id}`, { method: "POST" });
+      await apiFetch(`/api/schedules/delete/${id}`, { method: "POST" });
       await fetchDashboardData();
     } catch (e) {
       console.error(e);
@@ -625,7 +634,7 @@ async function runScraper() {
     setExecutionResult(null);
 
     try {
-      const response = await fetch(`/api/apis/run/${api.id}`, {
+      const response = await apiFetch(`/api/apis/run/${api.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1702,7 +1711,7 @@ async function runScraper() {
                   if (!nameInput.value) return;
                   
                   try {
-                    const res = await fetch("/api/keys/generate", {
+                    const res = await apiFetch("/api/keys/generate", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ userId: user?.id, name: nameInput.value })
@@ -1710,7 +1719,7 @@ async function runScraper() {
                     if (res.ok) {
                       nameInput.value = "";
                       // Refresh user
-                      const profileRes = await fetch(`/api/auth/me/${user?.id}`);
+                      const profileRes = await apiFetch(`/api/auth/me/${user?.id}`);
                       const profileData = await profileRes.json();
                       if (profileData.user) setUser(profileData.user);
                     }
@@ -1760,13 +1769,13 @@ async function runScraper() {
                         onClick={async () => {
                           if (!confirm("Are you sure you want to revoke this key? Any integrations using it will immediately break.")) return;
                           try {
-                            const res = await fetch("/api/keys", {
+                            const res = await apiFetch("/api/keys", {
                               method: "DELETE",
                               headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({ userId: user?.id, key: k.key })
                             });
                             if (res.ok) {
-                              const profileRes = await fetch(`/api/auth/me/${user?.id}`);
+                              const profileRes = await apiFetch(`/api/auth/me/${user?.id}`);
                               const profileData = await profileRes.json();
                               if (profileData.user) setUser(profileData.user);
                             }

@@ -1,13 +1,48 @@
-import express from "express";
+import express, { Request, Response, NextFunction } from "express";
+import cors from "cors";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { dbStore } from "./server-state.js";
-import { clarifyRecordedApi, simulateApiExecution } from "./server-gemini.js";
-import { executePuppeteerSteps } from "./server-puppeteer.js";
-import { startSchedulerEngine } from "./server-scheduler.js";
+import { dbStore, rateLimits } from "./server-state.js";
+import { simulateApiExecution, clarifyRecordedApi } from "./server-gemini.js";
+import { executeBrowserActions } from "./server-puppeteer.js";
+import { engine, startSchedulerEngine } from "./server-scheduler.js";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const JWT_SECRET = process.env.JWT_SECRET || "fallback_super_secret_key_123";
+
+// Extend Express Request to include user
+declare global {
+  namespace Express {
+    interface Request {
+      user?: { id: string };
+    }
+  }
+}
+
+// Authentication Middleware
+export const authenticateJWT = (req: Request, res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+
+  if (authHeader) {
+    const token = authHeader.split(" ")[1];
+    jwt.verify(token, JWT_SECRET, (err, user: any) => {
+      if (err) {
+        return res.status(403).json({ error: "Invalid or expired token" });
+      }
+      req.user = user;
+      next();
+    });
+  } else {
+    res.status(401).json({ error: "Authorization header missing" });
+  }
+};
 
 async function startServer() {
-  const app = express();
   const PORT = 3000;
 
   // Rate Limiting Map
@@ -21,31 +56,45 @@ async function startServer() {
 
   // Auth: signup
   app.post("/api/auth/signup", (req, res) => {
-    const { username } = req.body;
-    if (!username || username.trim() === "") {
-      return res.status(400).json({ error: "Username is required" });
+    const { username, password } = req.body;
+    if (!username || username.trim() === "" || !password) {
+      return res.status(400).json({ error: "Username and password are required" });
     }
     
     const cleanUsername = username.trim();
-    const user = dbStore.createUser(cleanUsername);
-    return res.json({ user });
+    const existing = dbStore.getUserByName(cleanUsername);
+    if (existing) {
+      return res.status(400).json({ error: "Username already taken" });
+    }
+
+    const passwordHash = bcrypt.hashSync(password, 10);
+    const user = dbStore.createUser(cleanUsername, passwordHash);
+
+    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' });
+    return res.json({ user, token });
   });
 
   // Auth: login
   app.post("/api/auth/login", (req, res) => {
-    const { username } = req.body;
-    if (!username || username.trim() === "") {
-      return res.status(400).json({ error: "Username is required" });
+    const { username, password } = req.body;
+    if (!username || username.trim() === "" || !password) {
+      return res.status(400).json({ error: "Username and password are required" });
     }
     const user = dbStore.getUserByName(username.trim());
     if (!user) {
       return res.status(404).json({ error: "User not found. Please Sign up!" });
     }
-    return res.json({ user });
+
+    if (!user.passwordHash || !bcrypt.compareSync(password, user.passwordHash)) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' });
+    return res.json({ user, token });
   });
 
   // Auth: me
-  app.get("/api/auth/me/:userId", (req, res) => {
+  app.get("/api/auth/me/:userId", authenticateJWT, (req, res) => {
     const { userId } = req.params;
     const user = dbStore.getUser(userId);
     if (!user) {
@@ -55,7 +104,7 @@ async function startServer() {
   });
 
   // Keys: Generate new API key
-  app.post("/api/keys/generate", (req, res) => {
+  app.post("/api/keys/generate", authenticateJWT, (req, res) => {
     const { userId, name } = req.body;
     if (!userId || !name) {
       return res.status(400).json({ error: "User ID and Name are required" });
@@ -68,7 +117,7 @@ async function startServer() {
   });
 
   // Keys: Revoke API key
-  app.delete("/api/keys", (req, res) => {
+  app.delete("/api/keys", authenticateJWT, (req, res) => {
     const { userId, key } = req.body;
     if (!userId || !key) {
       return res.status(400).json({ error: "User ID and Key are required" });
@@ -81,7 +130,7 @@ async function startServer() {
   });
 
   // BKash: Deposit
-  app.post("/api/bkash/deposit", (req, res) => {
+  app.post("/api/bkash/deposit", authenticateJWT, (req, res) => {
     const { userId, amount, trxId, senderNumber } = req.body;
     if (!userId || !amount || !trxId || !senderNumber) {
       return res.status(400).json({ error: "All bKash payment details are required (Amount, TrxID, Sender number)" });
@@ -109,12 +158,12 @@ async function startServer() {
   });
 
   // Admin: Get all transactions
-  app.get("/api/admin/transactions", (req, res) => {
+  app.get("/api/admin/transactions", authenticateJWT, (req, res) => {
     return res.json({ transactions: dbStore.getTransactions() });
   });
 
   // Admin: Approve transaction
-  app.post("/api/admin/transactions/approve/:txId", (req, res) => {
+  app.post("/api/admin/transactions/approve/:txId", authenticateJWT, (req, res) => {
     const { txId } = req.params;
     const tx = dbStore.approveTransaction(txId);
     if (!tx) {
@@ -124,7 +173,7 @@ async function startServer() {
   });
 
   // Admin: Reject transaction
-  app.post("/api/admin/transactions/reject/:txId", (req, res) => {
+  app.post("/api/admin/transactions/reject/:txId", authenticateJWT, (req, res) => {
     const { txId } = req.params;
     const tx = dbStore.rejectTransaction(txId);
     if (!tx) {
@@ -133,7 +182,7 @@ async function startServer() {
   });
 
   // Admin: Delete/Remove API from marketplace
-  app.post("/api/admin/apis/delete", (req, res) => {
+  app.post("/api/admin/apis/delete", authenticateJWT, (req, res) => {
     const { apiId } = req.body;
     if (!apiId) {
       return res.status(400).json({ error: "Missing apiId in delete request." });
@@ -162,7 +211,7 @@ async function startServer() {
   });
 
   // API: Save/Create API
-  app.post("/api/apis/create", (req, res) => {
+  app.post("/api/apis/create", authenticateJWT, (req, res) => {
     const { ownerId, name, description, isPrivate, pricePerCall, steps, clarifications } = req.body;
     if (!ownerId || !name || !steps || !clarifications) {
       return res.status(400).json({ error: "Missing required fields to save the API." });
@@ -196,7 +245,7 @@ async function startServer() {
   });
 
   // API: Get personal APIs
-  app.get("/api/apis/my/:userId", (req, res) => {
+  app.get("/api/apis/my/:userId", authenticateJWT, (req, res) => {
     const { userId } = req.params;
     const apis = dbStore.getApis().filter(api => api.ownerId === userId);
     return res.json({ apis });
@@ -209,14 +258,14 @@ async function startServer() {
   });
 
   // Schedules: Get user schedules
-  app.get("/api/schedules/:userId", (req, res) => {
+  app.get("/api/schedules/:userId", authenticateJWT, (req, res) => {
     const { userId } = req.params;
     const schedules = dbStore.getSchedules().filter(s => s.userId === userId);
     return res.json({ schedules });
   });
 
   // Schedules: Create schedule
-  app.post("/api/schedules/create", (req, res) => {
+  app.post("/api/schedules/create", authenticateJWT, (req, res) => {
     const { apiId, userId, parameters, frequency, ruleQuery, webhookUrl } = req.body;
     if (!apiId || !userId || !frequency || !ruleQuery || !webhookUrl) {
       return res.status(400).json({ error: "Missing required fields." });
@@ -228,7 +277,7 @@ async function startServer() {
   });
 
   // Schedules: Delete schedule
-  app.post("/api/schedules/delete/:scheduleId", (req, res) => {
+  app.post("/api/schedules/delete/:scheduleId", authenticateJWT, (req, res) => {
     const { scheduleId } = req.params;
     dbStore.deleteSchedule(scheduleId);
     return res.json({ success: true });
@@ -407,7 +456,7 @@ async function startServer() {
   });
 
   // Get metrics and history logs
-  app.get("/api/logs/:userId", (req, res) => {
+  app.get("/api/logs/:userId", authenticateJWT, (req, res) => {
     const { userId } = req.params;
     // Get logs where the user is either the caller or the owner of the API
     const myApiIds = dbStore.getApis().filter(api => api.ownerId === userId).map(api => api.id);
@@ -416,7 +465,7 @@ async function startServer() {
   });
 
   // Get user's transaction history
-  app.get("/api/transactions/:userId", (req, res) => {
+  app.get("/api/transactions/:userId", authenticateJWT, (req, res) => {
     const { userId } = req.params;
     const txs = dbStore.getTransactions().filter(tx => tx.userId === userId);
     return res.json({ transactions: txs });
