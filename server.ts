@@ -243,6 +243,12 @@ async function startServer() {
     // API Key Authentication & Rate Limiting
     const apiKey = req.headers['x-api-key'] as string;
     if (apiKey) {
+      const keyOwner = dbStore.getUserByApiKey(apiKey);
+      if (!keyOwner) {
+        return res.status(401).json({ error: "Invalid API Key" });
+      }
+      callerId = keyOwner.id;
+
       const now = Date.now();
       const limitData = rateLimits.get(apiKey) || { count: 0, resetAt: now + 60000 };
       
@@ -257,12 +263,6 @@ async function startServer() {
       if (limitData.count > 60) {
         return res.status(429).json({ error: "Too Many Requests. Rate limit of 60 requests per minute exceeded." });
       }
-
-      const keyOwner = dbStore.getUserByApiKey(apiKey);
-      if (!keyOwner) {
-        return res.status(401).json({ error: "Invalid API Key" });
-      }
-      callerId = keyOwner.id;
     }
 
     if (!callerId) {
