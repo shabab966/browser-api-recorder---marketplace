@@ -4,6 +4,7 @@ import { createServer as createViteServer } from "vite";
 import { dbStore } from "./server-state.js";
 import { clarifyRecordedApi, simulateApiExecution } from "./server-gemini.js";
 import { executePuppeteerSteps } from "./server-puppeteer.js";
+import { startSchedulerEngine } from "./server-scheduler.js";
 
 async function startServer() {
   const app = express();
@@ -176,6 +177,32 @@ async function startServer() {
   app.get("/api/apis/marketplace", (req, res) => {
     const apis = dbStore.getApis().filter(api => !api.isPrivate);
     return res.json({ apis });
+  });
+
+  // Schedules: Get user schedules
+  app.get("/api/schedules/:userId", (req, res) => {
+    const { userId } = req.params;
+    const schedules = dbStore.getSchedules().filter(s => s.userId === userId);
+    return res.json({ schedules });
+  });
+
+  // Schedules: Create schedule
+  app.post("/api/schedules/create", (req, res) => {
+    const { apiId, userId, parameters, frequency, ruleQuery, webhookUrl } = req.body;
+    if (!apiId || !userId || !frequency || !ruleQuery || !webhookUrl) {
+      return res.status(400).json({ error: "Missing required fields." });
+    }
+    const schedule = dbStore.createSchedule({
+      apiId, userId, parameters: parameters || {}, frequency, ruleQuery, webhookUrl
+    });
+    return res.json({ schedule });
+  });
+
+  // Schedules: Delete schedule
+  app.post("/api/schedules/delete/:scheduleId", (req, res) => {
+    const { scheduleId } = req.params;
+    dbStore.deleteSchedule(scheduleId);
+    return res.json({ success: true });
   });
 
   // API: Run recorded browser scenario
@@ -403,6 +430,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
+
+  startSchedulerEngine();
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Express Server booted on http://localhost:${PORT}`);

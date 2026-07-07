@@ -3,12 +3,26 @@ import {
   Activity, Play, StopCircle, RefreshCw, Layers, ShieldCheck, 
   Wallet, Puzzle, Plus, HelpCircle, Check, Database, Sparkles, 
   ArrowRight, Landmark, ExternalLink, Code2, Copy, History, 
-  ShoppingBag, Terminal, Lock, Globe, Trash2 
+  ShoppingBag, Terminal, Lock, Globe, Trash2, Clock 
 } from "lucide-react";
 import LoginScreen from "./components/LoginScreen.js";
 import MockBrowser from "./components/MockBrowser.js";
 import BkashPortal from "./components/BkashPortal.js";
 import ChromeExtensionCard from "./components/ChromeExtensionCard.js";
+
+export interface ApiSchedule {
+  id: string;
+  apiId: string;
+  userId: string;
+  parameters: Record<string, any>;
+  frequency: "hourly" | "daily";
+  ruleQuery: string;
+  webhookUrl: string;
+  lastRunAt?: string;
+  lastResult?: any;
+  isActive: boolean;
+  createdAt: string;
+}
 
 // Common Interface mirroring backend
 interface User {
@@ -71,7 +85,7 @@ interface ApiCallLog {
   createdAt: string;
 }
 
-type MainView = "workspace" | "dashboard" | "marketplace" | "admin";
+type MainView = "workspace" | "dashboard" | "marketplace" | "admin" | "scheduler";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(() => {
@@ -108,6 +122,13 @@ export default function App() {
   const [myApis, setMyApis] = useState<ApiItem[]>([]);
   const [marketplaceApis, setMarketplaceApis] = useState<ApiItem[]>([]);
   const [selectedApi, setSelectedApi] = useState<ApiItem | null>(null);
+
+  const [schedules, setSchedules] = useState<ApiSchedule[]>([]);
+  const [scheduleApiId, setScheduleApiId] = useState("");
+  const [scheduleFrequency, setScheduleFrequency] = useState<"hourly" | "daily">("daily");
+  const [scheduleRule, setScheduleRule] = useState("");
+  const [scheduleWebhook, setScheduleWebhook] = useState("");
+  const [scheduleLoading, setScheduleLoading] = useState(false);
   
   // Dynamic Playground Inputs for the selected API
   const [playgroundParams, setPlaygroundParams] = useState<Record<string, string>>({});
@@ -295,7 +316,6 @@ async function runScraper() {
         const profileData = await profileRes.json();
         setUser(profileData.user);
       } else if (profileRes.status === 404) {
-        // User no longer exists in database
         setUser(null);
         return;
       }
@@ -312,6 +332,13 @@ async function runScraper() {
       if (marketRes.ok) {
         const marketData = await marketRes.json();
         setMarketplaceApis(marketData.apis);
+      }
+
+      // Fetch Schedules
+      const schedRes = await fetch(`/api/schedules/${user.id}`);
+      if (schedRes.ok) {
+        const schedData = await schedRes.json();
+        setSchedules(schedData.schedules || []);
       }
 
       // Fetch Logs
@@ -533,6 +560,49 @@ async function runScraper() {
     }
   };
 
+  const handleCreateSchedule = async () => {
+    if (!user || !scheduleApiId || !scheduleRule || !scheduleWebhook) {
+      alert("Please fill all required fields.");
+      return;
+    }
+    setScheduleLoading(true);
+    try {
+      const res = await fetch("/api/schedules/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          apiId: scheduleApiId,
+          parameters: playgroundParams,
+          frequency: scheduleFrequency,
+          ruleQuery: scheduleRule,
+          webhookUrl: scheduleWebhook
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      
+      setScheduleApiId("");
+      setScheduleRule("");
+      setScheduleWebhook("");
+      await fetchDashboardData();
+    } catch (e: any) {
+      alert("Error: " + e.message);
+    } finally {
+      setScheduleLoading(false);
+    }
+  };
+
+  const handleDeleteSchedule = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this schedule?")) return;
+    try {
+      await fetch(`/api/schedules/delete/${id}`, { method: "POST" });
+      await fetchDashboardData();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const runLiveApi = async (api: ApiItem) => {
     if (!user) return;
     setExecutionLoading(true);
@@ -620,6 +690,15 @@ async function runScraper() {
           >
             <ShoppingBag className="w-3.5 h-3.5" />
             <span>Marketplace</span>
+          </button>
+
+          <button
+            id="nav-scheduler-btn"
+            onClick={() => { setActiveView("scheduler"); setExecutionResult(null); }}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${activeView === "scheduler" ? "bg-amber-600 text-white shadow-lg" : "text-slate-400 hover:text-slate-200"}`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>Scheduler</span>
           </button>
 
           <button
@@ -1225,6 +1304,120 @@ async function runScraper() {
         )}
 
         {/* VIEW 4: ADMIN PORTAL */}
+        {/* SCHEDULER VIEW */}
+        {activeView === "scheduler" && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold text-slate-100 flex items-center gap-3">
+                <Clock className="w-8 h-8 text-amber-500" />
+                Scheduled Runs & Webhooks
+              </h1>
+              <p className="text-slate-400 mt-2">Set up automated scraping rules and receive webhook alerts when conditions are met.</p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 space-y-4">
+                <h2 className="text-xl font-bold text-slate-100 border-b border-slate-800 pb-2">Active Schedules</h2>
+                {schedules.length === 0 ? (
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center text-slate-500">
+                    No active schedules found. Create one to get started!
+                  </div>
+                ) : (
+                  schedules.map(sched => (
+                    <div key={sched.id} className="bg-slate-900 border border-slate-800 rounded-xl p-6 relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 p-4">
+                        <button onClick={() => handleDeleteSchedule(sched.id)} className="text-rose-500 hover:text-rose-400 transition-colors opacity-0 group-hover:opacity-100">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="bg-indigo-500/20 text-indigo-400 text-xs px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">
+                          {sched.frequency}
+                        </span>
+                        <span className="text-slate-300 font-medium">API ID: {sched.apiId}</span>
+                      </div>
+                      <div className="mb-4">
+                        <p className="text-slate-400 text-sm"><span className="text-amber-400">Rule:</span> "{sched.ruleQuery}"</p>
+                        <p className="text-slate-400 text-sm truncate"><span className="text-emerald-400">Webhook:</span> {sched.webhookUrl}</p>
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        Last Run: {sched.lastRunAt ? new Date(sched.lastRunAt).toLocaleString() : "Never"}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 h-fit">
+                <h2 className="text-xl font-bold text-slate-100 mb-4 border-b border-slate-800 pb-2">Create New Schedule</h2>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Target API</label>
+                    <select 
+                      value={scheduleApiId}
+                      onChange={e => {
+                        setScheduleApiId(e.target.value);
+                        // find api to populate playground params if we want to, skipping for simplicity here
+                      }}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2 text-slate-200 focus:outline-none focus:border-amber-500 transition-colors"
+                    >
+                      <option value="">Select an API</option>
+                      <optgroup label="My APIs">
+                        {myApis.map(api => <option key={api.id} value={api.id}>{api.name}</option>)}
+                      </optgroup>
+                      <optgroup label="Marketplace APIs">
+                        {marketplaceApis.map(api => <option key={api.id} value={api.id}>{api.name}</option>)}
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Frequency</label>
+                    <select 
+                      value={scheduleFrequency}
+                      onChange={e => setScheduleFrequency(e.target.value as any)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2 text-slate-200 focus:outline-none focus:border-amber-500 transition-colors"
+                    >
+                      <option value="hourly">Hourly</option>
+                      <option value="daily">Daily</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Alert Rule (LLM Evaluated)</label>
+                    <textarea 
+                      value={scheduleRule}
+                      onChange={e => setScheduleRule(e.target.value)}
+                      placeholder="e.g. 'Is the flight price below 5000 BDT?'"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2 text-slate-200 focus:outline-none focus:border-amber-500 transition-colors h-20 resize-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Webhook URL</label>
+                    <input 
+                      type="url"
+                      value={scheduleWebhook}
+                      onChange={e => setScheduleWebhook(e.target.value)}
+                      placeholder="https://your-server.com/webhook"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2 text-slate-200 focus:outline-none focus:border-amber-500 transition-colors"
+                    />
+                  </div>
+
+                  <button 
+                    onClick={handleCreateSchedule}
+                    disabled={scheduleLoading}
+                    className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 rounded-lg shadow-lg shadow-amber-600/20 transition-all flex items-center justify-center gap-2"
+                  >
+                    {scheduleLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
+                    <span>Save Schedule</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeView === "admin" && (
           <div className="space-y-6 animate-fadeIn">
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">

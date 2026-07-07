@@ -62,6 +62,20 @@ export interface ApiCallLog {
   createdAt: string;
 }
 
+export interface ApiSchedule {
+  id: string;
+  apiId: string;
+  userId: string;
+  parameters: Record<string, any>;
+  frequency: "hourly" | "daily";
+  ruleQuery: string;
+  webhookUrl: string;
+  lastRunAt?: string;
+  lastResult?: any;
+  isActive: boolean;
+  createdAt: string;
+}
+
 const STORE_FILE = process.env.DATA_STORE_PATH || path.join(process.cwd(), "data-store.json");
 
 interface DataStore {
@@ -69,6 +83,7 @@ interface DataStore {
   apis: Record<string, ApiItem>;
   transactions: BkashTransaction[];
   logs: ApiCallLog[];
+  schedules: ApiSchedule[];
 }
 
 let store: DataStore = {
@@ -76,6 +91,7 @@ let store: DataStore = {
   apis: {},
   transactions: [],
   logs: [],
+  schedules: [],
 };
 
 // Initial setup with a pre-created demo user or sample APIs
@@ -268,5 +284,32 @@ export const dbStore = {
     store.logs.unshift(newLog);
     saveStore();
     return newLog;
+  },
+
+  getSchedules: () => store.schedules || [],
+  createSchedule: (schedule: Omit<ApiSchedule, "id" | "createdAt" | "lastRunAt" | "lastResult" | "isActive">): ApiSchedule => {
+    const newSchedule: ApiSchedule = {
+      ...schedule,
+      id: "sched-" + Math.random().toString(36).substring(2, 9),
+      isActive: true,
+      createdAt: new Date().toISOString(),
+    };
+    if (!store.schedules) store.schedules = [];
+    store.schedules.push(newSchedule);
+    saveStore();
+    return newSchedule;
+  },
+  updateSchedule: (id: string, updates: Partial<ApiSchedule>): ApiSchedule | null => {
+    if (!store.schedules) return null;
+    const idx = store.schedules.findIndex(s => s.id === id);
+    if (idx === -1) return null;
+    store.schedules[idx] = { ...store.schedules[idx], ...updates };
+    saveStore();
+    return store.schedules[idx];
+  },
+  deleteSchedule: (id: string) => {
+    if (!store.schedules) return;
+    store.schedules = store.schedules.filter(s => s.id !== id);
+    saveStore();
   },
 };

@@ -243,3 +243,41 @@ Do not add any explanations or comments, only return the raw JSON object/array.
     };
   }
 }
+
+export async function evaluateRuleWithGemini(ruleQuery: string, scrapeResult: any): Promise<boolean> {
+  try {
+    const prompt = `
+You are a rule evaluator for a web scraping automation tool.
+The user has set a rule: "${ruleQuery}"
+Here is the raw scraped output from the website:
+${JSON.stringify(scrapeResult)}
+
+Does the output satisfy the user's rule? Answer strictly in JSON format with a boolean "conditionMet".
+`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          required: ["conditionMet"],
+          properties: {
+            conditionMet: {
+              type: Type.BOOLEAN,
+              description: "True if the rule is satisfied, false otherwise."
+            }
+          }
+        }
+      }
+    });
+
+    if (!response.text) return false;
+    const parsed = JSON.parse(response.text.trim());
+    return !!parsed.conditionMet;
+  } catch (err) {
+    console.error("Gemini rule evaluation error:", err);
+    return false;
+  }
+}
