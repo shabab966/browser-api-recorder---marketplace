@@ -90,8 +90,9 @@ export async function executePuppeteerSteps(
     ],
   });
 
+  let page: any = null;
   try {
-    const page = await browser.newPage();
+    page = await browser.newPage();
     
     // Set viewport
     await page.setViewport({ width: 1280, height: 800 });
@@ -131,11 +132,20 @@ export async function executePuppeteerSteps(
               break;
             }
           }
+          
+          // Booking.com: If we are trying to click the search results tab switch, but we are already on search results page
+          if (step.selector.includes("sr_page-tab-trigger")) {
+            const url = page.url();
+            if (url.includes("searchresults") || url.includes("searchresults.html")) {
+              console.log("[Puppeteer Override] Skipping tab trigger click since page is already on search results page.");
+              break;
+            }
+          }
 
           let sel = normalizeSelector(step.selector);
           
           // Booking.com calendar date selection normalization override for older recorded APIs
-          if (step.selector.includes("calendar-searchboxdatepicker")) {
+          if (step.selector.includes("calendar-searchboxdatepicker") || (step.selector.includes("table") && step.selector.includes("tbody") && step.selector.includes("td"))) {
             dateClickCount++;
             const targetDate = dateClickCount === 1 ? params.checkin : params.checkout;
             if (targetDate) {
@@ -172,7 +182,7 @@ export async function executePuppeteerSteps(
           }
 
           try {
-            await page.waitForSelector(sel, { timeout: 8000 });
+            await page.waitForSelector(sel, { timeout: 30000 });
             try {
               await page.click(sel);
             } catch (clickErr) {
@@ -267,8 +277,22 @@ export async function executePuppeteerSteps(
     }
 
     return mergedData;
+  } catch (error) {
+    try {
+      if (page) {
+        console.error(`[Puppeteer Failure Diagnostics] Current page URL: ${page.url()}`);
+        const screenshotPath = `C:\\Users\\assha\\.gemini\\antigravity\\brain\\453ff0e0-2bcc-4e80-82ae-f12b7084f195\\screenshot_error.png`;
+        await page.screenshot({ path: screenshotPath });
+        console.error(`[Puppeteer Failure Diagnostics] Error screenshot saved to ${screenshotPath}`);
+      }
+    } catch (diagError) {
+      console.error("[Puppeteer Failure Diagnostics] Failed to capture diagnostics:", diagError);
+    }
+    throw error;
   } finally {
-    await browser.close();
+    if (page) {
+      await browser.close();
+    }
     console.log("[Puppeteer] Browser closed.");
   }
 }
