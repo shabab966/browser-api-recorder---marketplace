@@ -748,14 +748,16 @@ async function runScraper() {
             <span>API Keys</span>
           </button>
 
-          <button
-            id="nav-admin-btn"
-            onClick={() => { setActiveView("admin"); setExecutionResult(null); }}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${activeView === "admin" ? "bg-rose-600 text-white shadow-lg shadow-rose-600/20" : "text-slate-400 hover:text-slate-200"}`}
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-rose-400" />
-            <span>Admin Portal</span>
-          </button>
+          {user?.isAdmin && (
+            <button
+              id="nav-admin-btn"
+              onClick={() => { setActiveView("admin"); setExecutionResult(null); }}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${activeView === "admin" ? "bg-rose-600 text-white shadow-lg shadow-rose-600/20" : "text-slate-400 hover:text-slate-200"}`}
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-rose-400" />
+              <span>Admin Portal</span>
+            </button>
+          )}
         </div>
 
         {/* User Stats & bKash Deposit */}

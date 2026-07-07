@@ -25,7 +25,19 @@ declare global {
 }
 
 // Authentication Middleware
-export const authenticateJWT = (req: Request, res: Response, next: NextFunction) => {
+export 
+const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
+  authenticateJWT(req, res, () => {
+    // Check if user is admin
+    const user = dbStore.getUser((req as any).user.id);
+    if (!user || !user.isAdmin) {
+      return res.status(403).json({ error: 'Forbidden: Admin access required.' });
+    }
+    next();
+  });
+};
+
+const authenticateJWT = (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
 
   if (authHeader) {
@@ -43,6 +55,22 @@ export const authenticateJWT = (req: Request, res: Response, next: NextFunction)
 };
 
 async function startServer() {
+  const adminUsername = process.env.ADMIN_USERNAME;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (adminUsername && adminPassword) {
+    const existingAdmin = dbStore.getUserByName(adminUsername);
+    if (!existingAdmin) {
+      const salt = await bcrypt.genSalt(10);
+      const hash = await bcrypt.hash(adminPassword, salt);
+      dbStore.createUser(adminUsername, hash, true);
+      console.log('✅ Auto-provisioned Admin Account:', adminUsername);
+    } else if (!existingAdmin.isAdmin) {
+      existingAdmin.isAdmin = true;
+      dbStore.saveStore();
+      console.log('✅ Elevated existing account to Admin:', adminUsername);
+    }
+  }
+
   const PORT = 3000;
 
   // Rate Limiting Map
@@ -62,6 +90,12 @@ async function startServer() {
     }
     
     const cleanUsername = username.trim();
+    
+    const adminUsername = process.env.ADMIN_USERNAME?.toLowerCase();
+    if (adminUsername && cleanUsername.toLowerCase() === adminUsername) {
+      return res.status(403).json({ error: "Cannot register with reserved administrator username" });
+    }
+
     const existing = dbStore.getUserByName(cleanUsername);
     if (existing) {
       return res.status(400).json({ error: "Username already taken" });
@@ -158,12 +192,12 @@ async function startServer() {
   });
 
   // Admin: Get all transactions
-  app.get("/api/admin/transactions", authenticateJWT, (req, res) => {
+  app.get("/api/admin/transactions", requireAdmin, (req, res) => {
     return res.json({ transactions: dbStore.getTransactions() });
   });
 
   // Admin: Approve transaction
-  app.post("/api/admin/transactions/approve/:txId", authenticateJWT, (req, res) => {
+  app.post("/api/admin/transactions/approve/:txId", requireAdmin, (req, res) => {
     const { txId } = req.params;
     const tx = dbStore.approveTransaction(txId);
     if (!tx) {
@@ -173,7 +207,7 @@ async function startServer() {
   });
 
   // Admin: Reject transaction
-  app.post("/api/admin/transactions/reject/:txId", authenticateJWT, (req, res) => {
+  app.post("/api/admin/transactions/reject/:txId", requireAdmin, (req, res) => {
     const { txId } = req.params;
     const tx = dbStore.rejectTransaction(txId);
     if (!tx) {
@@ -182,7 +216,7 @@ async function startServer() {
   });
 
   // Admin: Delete/Remove API from marketplace
-  app.post("/api/admin/apis/delete", authenticateJWT, (req, res) => {
+  app.post("/api/admin/apis/delete", requireAdmin, (req, res) => {
     const { apiId } = req.body;
     if (!apiId) {
       return res.status(400).json({ error: "Missing apiId in delete request." });

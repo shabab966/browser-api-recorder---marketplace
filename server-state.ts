@@ -11,6 +11,7 @@ export interface User {
   id: string;
   username: string;
   passwordHash?: string;
+  isAdmin?: boolean;
   balance: number; // in BDT (Taka)
   freeAttemptsUsed: { [dateStr: string]: number }; // tracks daily attempts
   apiKeys?: ApiKey[];
@@ -200,13 +201,14 @@ export const dbStore = {
   getUser: (id: string) => store.users[id],
   getUserByName: (username: string) => Object.values(store.users).find(u => u.username.toLowerCase() === username.toLowerCase()),
   saveStore: () => saveStore(),
-  createUser: (username: string, passwordHash: string): User => {
+  createUser: (username: string, passwordHash: string, isAdmin: boolean = false): User => {
     const existing = Object.values(store.users).find(u => u.username.toLowerCase() === username.toLowerCase());
     if (existing) return existing;
     const newUser: User = {
       id: "usr-" + Math.random().toString(36).substring(2, 9),
       username,
       passwordHash,
+      isAdmin,
       balance: 10, // starts with 10 BDT welcome bonus!
       freeAttemptsUsed: {},
       createdAt: new Date().toISOString(),
