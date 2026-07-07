@@ -33,7 +33,10 @@ export default function BkashPortal({ userId, onPaymentSuccess, onClose }: Bkash
     try {
       const response = await fetch("/api/bkash/deposit", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("authToken")}` 
+        },
         body: JSON.stringify({
           userId,
           amount: parseFloat(amount),
