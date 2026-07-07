@@ -481,7 +481,8 @@ async function runScraper() {
 
   const handleLogout = () => {
     localStorage.removeItem("authToken");
-    setUser(null);
+    localStorage.removeItem("api_marketplace_user");
+    window.location.reload();
   };
 
   const startNewRecording = () => {
