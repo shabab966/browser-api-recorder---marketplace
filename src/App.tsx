@@ -3,7 +3,7 @@ import {
   Activity, Play, StopCircle, RefreshCw, Layers, ShieldCheck, 
   Wallet, Puzzle, Plus, HelpCircle, Check, Database, Sparkles, 
   ArrowRight, Landmark, ExternalLink, Code2, Copy, History, 
-  ShoppingBag, Terminal, Lock, Globe, Trash2, Clock, Key 
+  ShoppingBag, Terminal, Lock, Globe, Trash2, Clock, Key, LogOut
 } from "lucide-react";
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
@@ -479,6 +479,11 @@ async function runScraper() {
     setActiveView("workspace");
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem("authToken");
+    setUser(null);
+  };
+
   const startNewRecording = () => {
     setRecordedSteps([]);
     setIsRecording(true);
@@ -777,6 +782,15 @@ async function runScraper() {
           >
             <Wallet className="w-4 h-4" />
             <span className="hidden sm:inline">bKash Add Money</span>
+          </button>
+
+          <button
+            id="logout-btn"
+            onClick={handleLogout}
+            className="p-2.5 bg-slate-800 hover:bg-red-900/50 text-slate-300 hover:text-red-400 rounded-lg cursor-pointer transition-all flex items-center gap-1.5 font-bold text-xs shrink-0 border border-transparent hover:border-red-900/50"
+            title="Log Out"
+          >
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </header>
