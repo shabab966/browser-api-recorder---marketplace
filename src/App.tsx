@@ -3,7 +3,7 @@ import {
   Activity, Play, StopCircle, RefreshCw, Layers, ShieldCheck, 
   Wallet, Puzzle, Plus, HelpCircle, Check, Database, Sparkles, 
   ArrowRight, Landmark, ExternalLink, Code2, Copy, History, 
-  ShoppingBag, Terminal, Lock, Globe, Trash2, Clock 
+  ShoppingBag, Terminal, Lock, Globe, Trash2, Clock, Key 
 } from "lucide-react";
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
@@ -28,12 +28,19 @@ export interface ApiSchedule {
   createdAt: string;
 }
 
+export interface ApiKey {
+  key: string;
+  name: string;
+  createdAt: string;
+}
+
 // Common Interface mirroring backend
 interface User {
   id: string;
   username: string;
   balance: number;
   freeAttemptsUsed: { [dateStr: string]: number };
+  apiKeys?: ApiKey[];
 }
 
 interface BrowserStep {
@@ -89,7 +96,7 @@ interface ApiCallLog {
   createdAt: string;
 }
 
-type MainView = "workspace" | "dashboard" | "marketplace" | "admin" | "scheduler" | "analytics";
+type MainView = "workspace" | "dashboard" | "marketplace" | "admin" | "scheduler" | "analytics" | "keys";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(() => {
@@ -712,6 +719,15 @@ async function runScraper() {
           >
             <Activity className="w-3.5 h-3.5" />
             <span>Analytics</span>
+          </button>
+
+          <button
+            id="nav-keys-btn"
+            onClick={() => { setActiveView("keys"); setExecutionResult(null); }}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${activeView === "keys" ? "bg-purple-600 text-white shadow-lg" : "text-slate-400 hover:text-slate-200"}`}
+          >
+            <Key className="w-3.5 h-3.5" />
+            <span>API Keys</span>
           </button>
 
           <button
@@ -1562,6 +1578,131 @@ async function runScraper() {
             </div>
           );
         })()}
+
+        {/* API KEYS VIEW */}
+        {activeView === "keys" && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold text-slate-100 flex items-center gap-3">
+                <Key className="w-8 h-8 text-purple-500" />
+                Developer API Keys
+              </h1>
+              <p className="text-slate-400 mt-2">Generate secure API keys to integrate your recorded APIs directly into your own applications without exposing your user ID.</p>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-8">
+              <h2 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
+                <Plus className="w-5 h-5 text-indigo-400" /> Generate New Key
+              </h2>
+              <form 
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget;
+                  const nameInput = form.elements.namedItem("keyName") as HTMLInputElement;
+                  if (!nameInput.value) return;
+                  
+                  try {
+                    const res = await fetch("/api/keys/generate", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ userId: user?.id, name: nameInput.value })
+                    });
+                    if (res.ok) {
+                      nameInput.value = "";
+                      // Refresh user
+                      const profileRes = await fetch(`/api/auth/me/${user?.id}`);
+                      const profileData = await profileRes.json();
+                      if (profileData.user) setUser(profileData.user);
+                    }
+                  } catch (err) {
+                    console.error("Failed to generate key", err);
+                  }
+                }}
+                className="flex items-end gap-4"
+              >
+                <div className="flex-1">
+                  <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase tracking-wider">Key Name</label>
+                  <input 
+                    name="keyName"
+                    type="text" 
+                    placeholder="e.g. Production Server, Zapier Integration..." 
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 placeholder:text-slate-600"
+                    required
+                  />
+                </div>
+                <button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white px-6 py-2.5 rounded-lg font-bold transition-colors whitespace-nowrap">
+                  Generate Secret Key
+                </button>
+              </form>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-8">
+              <h2 className="text-lg font-bold text-slate-200 mb-4">Your Active Keys</h2>
+              {(!user?.apiKeys || user.apiKeys.length === 0) ? (
+                <div className="text-slate-500 text-center py-8 bg-slate-950 rounded-lg border border-dashed border-slate-700">
+                  You have not generated any API keys yet.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {user.apiKeys.map(k => (
+                    <div key={k.key} className="bg-slate-950 border border-slate-800 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <div className="font-bold text-slate-200 flex items-center gap-2">
+                          {k.name}
+                          <span className="text-xs bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20 font-medium">Active</span>
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1">Created: {new Date(k.createdAt).toLocaleDateString()}</div>
+                        <code className="text-purple-400 text-sm mt-2 block bg-slate-900 px-3 py-1.5 rounded border border-slate-800 select-all font-mono">
+                          {k.key}
+                        </code>
+                      </div>
+                      <button 
+                        onClick={async () => {
+                          if (!confirm("Are you sure you want to revoke this key? Any integrations using it will immediately break.")) return;
+                          try {
+                            const res = await fetch("/api/keys", {
+                              method: "DELETE",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ userId: user?.id, key: k.key })
+                            });
+                            if (res.ok) {
+                              const profileRes = await fetch(`/api/auth/me/${user?.id}`);
+                              const profileData = await profileRes.json();
+                              if (profileData.user) setUser(profileData.user);
+                            }
+                          } catch (err) {
+                            console.error("Failed to revoke key", err);
+                          }
+                        }}
+                        className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 px-3 py-1.5 rounded transition-colors text-sm font-semibold flex items-center justify-center gap-1"
+                      >
+                        <Trash2 className="w-4 h-4" /> Revoke
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-indigo-950/30 border border-indigo-900/50 rounded-xl p-6">
+              <h2 className="text-lg font-bold text-indigo-300 mb-2 flex items-center gap-2">
+                <Terminal className="w-5 h-5" /> Developer Quickstart
+              </h2>
+              <p className="text-indigo-200/70 text-sm mb-4">
+                Use your generated API key in the <code className="bg-slate-900 px-1 rounded text-slate-300">x-api-key</code> header to authenticate requests securely. 
+                Rate limits are set to <strong>60 requests per minute</strong> per key.
+              </p>
+              <div className="bg-slate-950 p-4 rounded-lg font-mono text-sm text-slate-300 overflow-x-auto border border-slate-800">
+                <pre>
+                  <span className="text-pink-400">curl</span> -X POST http://localhost:3000/api/apis/run/[API_ID] \<br/>
+                  {"  "}-H <span className="text-yellow-300">"Content-Type: application/json"</span> \<br/>
+                  {"  "}-H <span className="text-yellow-300">"x-api-key: sec_live_YOUR_KEY_HERE"</span> \<br/>
+                  {"  "}-d <span className="text-green-400">'{"{"}"parameters": {"{"}{"}"}{"}"}'</span>
+                </pre>
+              </div>
+            </div>
+          </div>
+        )}
 
         {activeView === "admin" && (
           <div className="space-y-6 animate-fadeIn">

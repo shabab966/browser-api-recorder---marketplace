@@ -1,11 +1,18 @@
 import fs from "fs";
 import path from "path";
 
+export interface ApiKey {
+  key: string;
+  name: string;
+  createdAt: string;
+}
+
 export interface User {
   id: string;
   username: string;
   balance: number; // in BDT (Taka)
   freeAttemptsUsed: { [dateStr: string]: number }; // tracks daily attempts
+  apiKeys?: ApiKey[];
   createdAt: string;
 }
 
@@ -209,6 +216,38 @@ export const dbStore = {
   updateUser: (user: User) => {
     store.users[user.id] = user;
     saveStore();
+  },
+
+  generateApiKey: (userId: string, name: string): ApiKey | null => {
+    const u = store.users[userId];
+    if (!u) return null;
+    
+    const key = `sec_live_${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`;
+    if (!u.apiKeys) u.apiKeys = [];
+    const newKey = {
+      key,
+      name,
+      createdAt: new Date().toISOString()
+    };
+    u.apiKeys.push(newKey);
+    saveStore();
+    return newKey;
+  },
+  
+  revokeApiKey: (userId: string, key: string): boolean => {
+    const u = store.users[userId];
+    if (!u || !u.apiKeys) return false;
+    const initialLength = u.apiKeys.length;
+    u.apiKeys = u.apiKeys.filter(k => k.key !== key);
+    if (u.apiKeys.length !== initialLength) {
+      saveStore();
+      return true;
+    }
+    return false;
+  },
+  
+  getUserByApiKey: (key: string): User | undefined => {
+    return Object.values(store.users).find(u => u.apiKeys?.some(k => k.key === key));
   },
 
   getApis: () => Object.values(store.apis),

@@ -10,6 +10,9 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // Rate Limiting Map
+  const rateLimits = new Map<string, { count: number, resetAt: number }>();
+
   // Body parser
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -49,6 +52,32 @@ async function startServer() {
       return res.status(404).json({ error: "User not found" });
     }
     return res.json({ user });
+  });
+
+  // Keys: Generate new API key
+  app.post("/api/keys/generate", (req, res) => {
+    const { userId, name } = req.body;
+    if (!userId || !name) {
+      return res.status(400).json({ error: "User ID and Name are required" });
+    }
+    const newKey = dbStore.generateApiKey(userId, name);
+    if (!newKey) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    return res.json({ key: newKey });
+  });
+
+  // Keys: Revoke API key
+  app.delete("/api/keys", (req, res) => {
+    const { userId, key } = req.body;
+    if (!userId || !key) {
+      return res.status(400).json({ error: "User ID and Key are required" });
+    }
+    const success = dbStore.revokeApiKey(userId, key);
+    if (!success) {
+      return res.status(400).json({ error: "Invalid key or user" });
+    }
+    return res.json({ success: true });
   });
 
   // BKash: Deposit
@@ -208,10 +237,36 @@ async function startServer() {
   // API: Run recorded browser scenario
   app.post("/api/apis/run/:apiId", async (req, res) => {
     const { apiId } = req.params;
-    const { callerId, parameters } = req.body;
+    const { parameters } = req.body;
+    let callerId = req.body.callerId;
+    
+    // API Key Authentication & Rate Limiting
+    const apiKey = req.headers['x-api-key'] as string;
+    if (apiKey) {
+      const now = Date.now();
+      const limitData = rateLimits.get(apiKey) || { count: 0, resetAt: now + 60000 };
+      
+      if (now > limitData.resetAt) {
+        limitData.count = 1;
+        limitData.resetAt = now + 60000;
+      } else {
+        limitData.count++;
+      }
+      rateLimits.set(apiKey, limitData);
+
+      if (limitData.count > 60) {
+        return res.status(429).json({ error: "Too Many Requests. Rate limit of 60 requests per minute exceeded." });
+      }
+
+      const keyOwner = dbStore.getUserByApiKey(apiKey);
+      if (!keyOwner) {
+        return res.status(401).json({ error: "Invalid API Key" });
+      }
+      callerId = keyOwner.id;
+    }
 
     if (!callerId) {
-      return res.status(400).json({ error: "Caller User ID is required" });
+      return res.status(400).json({ error: "Caller User ID or x-api-key header is required" });
     }
 
     const caller = dbStore.getUser(callerId);
