@@ -1550,7 +1550,7 @@ async function runScraper() {
               </div>
 
               {/* Earnings Chart */}
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-6">
                 <h2 className="text-lg font-bold text-slate-200 mb-6 flex items-center gap-2">
                   <Wallet className="w-5 h-5 text-amber-400" /> Revenue (BDT)
                 </h2>
@@ -1572,6 +1572,79 @@ async function runScraper() {
                   ) : (
                     <div className="flex h-full items-center justify-center text-slate-500">No earnings data available yet. Share your APIs to start earning!</div>
                   )}
+                </div>
+              </div>
+
+              {/* API Breakdown Table */}
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+                <h2 className="text-lg font-bold text-slate-200 mb-6 flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-sky-400" /> Individual API Performance Breakdown
+                </h2>
+                
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-800">
+                        <th className="py-3 px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">API Name</th>
+                        <th className="py-3 px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Total Executions</th>
+                        <th className="py-3 px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Success</th>
+                        <th className="py-3 px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Errors</th>
+                        <th className="py-3 px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Health (Success Rate)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/50">
+                      {(() => {
+                        const apiBreakdownMap: Record<string, { name: string; total: number; success: number }> = {};
+                        myApis.forEach(api => {
+                          apiBreakdownMap[api.id] = { name: api.name, total: 0, success: 0 };
+                        });
+                        myApiLogs.forEach(log => {
+                          if (apiBreakdownMap[log.apiId]) {
+                            apiBreakdownMap[log.apiId].total += 1;
+                            if (log.status === "success") {
+                              apiBreakdownMap[log.apiId].success += 1;
+                            }
+                          }
+                        });
+                        const breakdownData = Object.values(apiBreakdownMap).sort((a, b) => b.total - a.total);
+                        
+                        if (breakdownData.length === 0) {
+                          return (
+                            <tr>
+                              <td colSpan={5} className="py-8 text-center text-slate-500 text-sm">
+                                You haven't created any APIs yet.
+                              </td>
+                            </tr>
+                          );
+                        }
+
+                        return breakdownData.map(data => {
+                          const successRate = data.total > 0 ? Math.round((data.success / data.total) * 100) : 0;
+                          return (
+                            <tr key={data.name} className="hover:bg-slate-800/20 transition-colors">
+                              <td className="py-4 px-4 text-sm font-semibold text-slate-200">{data.name}</td>
+                              <td className="py-4 px-4 text-sm text-slate-400 text-center">{data.total}</td>
+                              <td className="py-4 px-4 text-sm text-emerald-400 text-center font-medium">{data.success}</td>
+                              <td className="py-4 px-4 text-sm text-rose-400 text-center font-medium">{data.total - data.success}</td>
+                              <td className="py-4 px-4 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  <div className="w-24 h-2 bg-slate-800 rounded-full overflow-hidden">
+                                    <div 
+                                      className={`h-full ${successRate >= 90 ? 'bg-emerald-500' : successRate >= 70 ? 'bg-amber-500' : 'bg-rose-500'}`} 
+                                      style={{ width: `${successRate}%` }}
+                                    ></div>
+                                  </div>
+                                  <span className={`text-sm font-bold ${successRate >= 90 ? 'text-emerald-400' : successRate >= 70 ? 'text-amber-400' : 'text-rose-400'}`}>
+                                    {successRate}%
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
