@@ -44,41 +44,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     }
   };
 
-  const loadDemoUser = async (demoName: string) => {
-    setError(null);
-    setLoading(true);
-    const demoPass = "shabab_demo_pass";
-    try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: demoName, password: demoPass }),
-      });
-      const data = await response.json();
-      if (response.ok) {
-        localStorage.setItem("authToken", data.token);
-        onLoginSuccess(data.user);
-      } else {
-        // Sign up if demo doesn't exist
-        const registerResponse = await fetch("/api/auth/signup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: demoName, password: demoPass }),
-        });
-        const registerData = await registerResponse.json();
-        if (registerResponse.ok) {
-          localStorage.setItem("authToken", registerData.token);
-          onLoginSuccess(registerData.user);
-        } else {
-          throw new Error(registerData.error);
-        }
-      }
-    } catch (err: any) {
-      setError(err.message || "Failed to load demo user.");
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
   return (
     <div id="login-container" className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-100 p-4">
@@ -171,25 +137,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           </button>
         </div>
 
-        <div className="relative my-8">
-          <div className="absolute inset-0 flex items-center" aria-hidden="true">
-            <div className="w-full border-t border-slate-800"></div>
-          </div>
-          <div className="relative flex justify-center text-xs font-mono uppercase">
-            <span className="bg-slate-900 px-3 text-slate-500">Fast Sandbox Access</span>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-1 gap-2">
-          <button
-            id="demo-user-btn"
-            onClick={() => loadDemoUser("shabab")}
-            className="w-full py-2.5 px-4 bg-slate-950 hover:bg-slate-800/80 border border-slate-800 rounded-xl flex items-center justify-between text-sm text-slate-300 hover:text-white font-mono transition-all cursor-pointer"
-          >
-            <span>Use Demo Account: <b>shabab</b></span>
-            <span className="text-indigo-400 text-xs">Login &rarr;</span>
-          </button>
-        </div>
       </div>
     </div>
   );
