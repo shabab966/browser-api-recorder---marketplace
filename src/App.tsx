@@ -96,7 +96,7 @@ interface ApiCallLog {
   createdAt: string;
 }
 
-type MainView = "workspace" | "dashboard" | "marketplace" | "admin" | "scheduler" | "analytics" | "keys";
+type MainView = "workspace" | "dashboard" | "marketplace" | "admin" | "scheduler" | "analytics" | "keys" | "docs";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(() => {
@@ -106,6 +106,10 @@ export default function App() {
   const [activeView, setActiveView] = useState<MainView>("workspace");
   const [adminTransactions, setAdminTransactions] = useState<BkashTransaction[]>([]);
   const [adminLoading, setAdminLoading] = useState(false);
+  
+  // Docs State
+  const [activeDocsApi, setActiveDocsApi] = useState<ApiItem | null>(null);
+  const [activeSnippetTab, setActiveSnippetTab] = useState<"curl" | "python" | "node" | "go">("curl");
 
   // Sync user session to localStorage
   useEffect(() => {
@@ -972,6 +976,16 @@ async function runScraper() {
                               {api.isPrivate ? <Lock className="w-2.5 h-2.5 text-slate-500" /> : <Globe className="w-2.5 h-2.5 text-emerald-500" />}
                               <span>{api.isPrivate ? "Private" : "Marketplace"}</span>
                             </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveDocsApi(api);
+                                setActiveView("docs");
+                              }}
+                              className="ml-auto text-3xs font-bold text-sky-400 hover:text-sky-300 bg-sky-950/30 hover:bg-sky-900/50 px-2 py-0.5 rounded border border-sky-900/30 transition-colors flex items-center gap-1"
+                            >
+                              <Code2 className="w-3 h-3" /> API Docs
+                            </button>
                           </div>
                         </div>
                       </button>
@@ -1305,25 +1319,38 @@ async function runScraper() {
                         {api.callsCount} calls logged
                       </span>
                       
-                      <button
-                        id={`test-marketplace-${api.id}`}
-                        onClick={() => {
-                          setSelectedApi(api);
-                          setActiveView("dashboard");
-                          setExecutionResult(null);
-                          setApiRunError(null);
-                          // Initialize inputs
-                          const initialParams: Record<string, string> = {};
-                          api.clarifications.dynamicParameters.forEach((p: any) => {
-                            initialParams[p.name] = p.defaultValue;
-                          });
-                          setPlaygroundParams(initialParams);
-                        }}
-                        className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs flex items-center gap-1 cursor-pointer transition-all shadow-lg shadow-indigo-600/10"
-                      >
-                        <span>Run / Test</span>
-                        <ArrowRight className="w-3 h-3 text-white" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setActiveDocsApi(api);
+                            setActiveView("docs");
+                            setExecutionResult(null);
+                          }}
+                          className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-lg text-xs flex items-center gap-1 cursor-pointer transition-all"
+                        >
+                          <Globe className="w-3 h-3" />
+                          <span>Docs</span>
+                        </button>
+                        <button
+                          id={`test-marketplace-${api.id}`}
+                          onClick={() => {
+                            setSelectedApi(api);
+                            setActiveView("dashboard");
+                            setExecutionResult(null);
+                            setApiRunError(null);
+                            // Initialize inputs
+                            const initialParams: Record<string, string> = {};
+                            api.clarifications.dynamicParameters.forEach((p: any) => {
+                              initialParams[p.name] = p.defaultValue;
+                            });
+                            setPlaygroundParams(initialParams);
+                          }}
+                          className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs flex items-center gap-1 cursor-pointer transition-all shadow-lg shadow-indigo-600/10"
+                        >
+                          <span>Run / Test</span>
+                          <ArrowRight className="w-3 h-3 text-white" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1772,6 +1799,220 @@ async function runScraper() {
                   {"  "}-H <span className="text-yellow-300">"x-api-key: sec_live_YOUR_KEY_HERE"</span> \<br/>
                   {"  "}-d <span className="text-green-400">'{"{"}"parameters": {"{"}{"}"}{"}"}'</span>
                 </pre>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* DOCS VIEW */}
+        {activeView === "docs" && activeDocsApi && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto space-y-6">
+            <button 
+              onClick={() => {
+                setActiveDocsApi(null);
+                setActiveView("marketplace"); // default back to marketplace, or user can click other tabs
+              }}
+              className="text-slate-400 hover:text-white flex items-center gap-2 text-sm font-bold transition-colors mb-4"
+            >
+              <ArrowRight className="w-4 h-4 rotate-180" /> Back to APIs
+            </button>
+            
+            {/* Header */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-xs font-mono font-bold bg-indigo-500/10 text-indigo-400 px-2.5 py-1 rounded border border-indigo-500/20 uppercase tracking-wider">
+                  REST API
+                </span>
+                <span className="text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded border border-emerald-500/20 uppercase tracking-wider flex items-center gap-1">
+                  <Lock className="w-3 h-3" /> API Key Auth
+                </span>
+              </div>
+              <h1 className="text-4xl font-black text-white tracking-tight mb-4">{activeDocsApi.name}</h1>
+              <p className="text-slate-400 text-base leading-relaxed max-w-3xl font-sans">{activeDocsApi.description}</p>
+              
+              <div className="mt-8 pt-6 border-t border-slate-800 flex items-center gap-4">
+                <span className="font-bold text-slate-300">Base URL</span>
+                <code className="text-sm bg-slate-950 border border-slate-800 px-4 py-2 rounded-lg text-slate-300 font-mono shadow-inner select-all">
+                  <span className="text-pink-500 font-bold mr-2">POST</span>
+                  http://localhost:3000/api/apis/run/{activeDocsApi.id}
+                </code>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              
+              {/* Parameters & Request Body (Left Col) */}
+              <div className="lg:col-span-7 space-y-6">
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+                  <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                    <Database className="w-5 h-5 text-indigo-400" /> Request Parameters
+                  </h2>
+                  <p className="text-sm text-slate-400 mb-6">Pass these parameters inside the <code className="text-indigo-300 bg-slate-800 px-1 rounded">parameters</code> JSON object in the request body.</p>
+                  
+                  {activeDocsApi.clarifications.dynamicParameters.length === 0 ? (
+                    <div className="text-slate-500 bg-slate-950 p-4 rounded-lg border border-slate-800 text-center text-sm font-sans">
+                      This API does not require any parameters.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="border-b border-slate-800">
+                            <th className="py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Field</th>
+                            <th className="py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Type</th>
+                            <th className="py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Description</th>
+                            <th className="py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Default</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/50">
+                          {activeDocsApi.clarifications.dynamicParameters.map(param => (
+                            <tr key={param.name}>
+                              <td className="py-4 px-2">
+                                <span className="font-mono text-sm font-bold text-indigo-300">{param.name}</span>
+                              </td>
+                              <td className="py-4 px-2">
+                                <span className="text-xs font-mono text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">{param.type || 'string'}</span>
+                              </td>
+                              <td className="py-4 px-2 text-sm text-slate-300 font-sans">{param.description}</td>
+                              <td className="py-4 px-2 text-sm text-slate-500 font-mono break-all">{param.defaultValue || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+                  <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                    <History className="w-5 h-5 text-emerald-400" /> Response Format
+                  </h2>
+                  <p className="text-sm text-slate-400 mb-4">A successful execution will return a JSON object with <code className="text-indigo-300 bg-slate-800 px-1 rounded">success: true</code> and the scraped <code className="text-emerald-300 bg-slate-800 px-1 rounded">data</code>.</p>
+                  <div className="bg-slate-950 border border-slate-800 rounded-lg p-4 overflow-x-auto shadow-inner">
+                    <pre className="text-sm font-mono text-slate-300">
+{`{
+  "success": true,
+  "data": {
+    "result": [ ... ]
+  },
+  "executionTimeMs": 1450,
+  "cost": ${activeDocsApi.pricePerCall}
+}`}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+
+              {/* Code Snippets (Right Col) */}
+              <div className="lg:col-span-5">
+                <div className="bg-[#0d1117] border border-slate-800 rounded-2xl overflow-hidden sticky top-6 shadow-2xl">
+                  <div className="bg-[#161b22] border-b border-slate-800 px-4 py-3 flex gap-4 overflow-x-auto no-scrollbar">
+                    {["curl", "python", "node", "go"].map((lang) => (
+                      <button
+                        key={lang}
+                        onClick={() => setActiveSnippetTab(lang as any)}
+                        className={`text-xs font-bold font-mono tracking-wider transition-colors whitespace-nowrap ${activeSnippetTab === lang ? "text-indigo-400" : "text-slate-500 hover:text-slate-300"}`}
+                      >
+                        {lang.toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                  
+                  <div className="p-4 overflow-x-auto text-sm font-mono leading-loose shadow-inner">
+                    {activeSnippetTab === "curl" && (
+                      <pre className="text-slate-300">
+<span className="text-pink-400">curl</span> -X POST http://localhost:3000/api/apis/run/{activeDocsApi.id} \
+  -H <span className="text-yellow-300">"Content-Type: application/json"</span> \
+  -H <span className="text-yellow-300">"x-api-key: sec_live_YOUR_KEY_HERE"</span> \
+  -d <span className="text-green-400">'{JSON.stringify({
+    parameters: activeDocsApi.clarifications.dynamicParameters.reduce((acc: any, p: any) => {
+      acc[p.name] = p.defaultValue;
+      return acc;
+    }, {})
+  }, null, 2)}'</span>
+                      </pre>
+                    )}
+                    
+                    {activeSnippetTab === "python" && (
+                      <pre className="text-slate-300">
+<span className="text-pink-400">import</span> requests
+<span className="text-pink-400">import</span> json
+
+url = <span className="text-yellow-300">"http://localhost:3000/api/apis/run/{activeDocsApi.id}"</span>
+headers = {'{'}
+  <span className="text-yellow-300">"Content-Type"</span>: <span className="text-yellow-300">"application/json"</span>,
+  <span className="text-yellow-300">"x-api-key"</span>: <span className="text-yellow-300">"sec_live_YOUR_KEY_HERE"</span>
+{'}'}
+payload = {'{'}
+  <span className="text-yellow-300">"parameters"</span>: {JSON.stringify(activeDocsApi.clarifications.dynamicParameters.reduce((acc: any, p: any) => {
+    acc[p.name] = p.defaultValue;
+    return acc;
+  }, {}), null, 4).replace(/"/g, '"').replace(/\n/g, '\n  ')}
+{'}'}
+
+response = requests.post(url, headers=headers, json=payload)
+<span className="text-sky-400">print</span>(response.json())
+                      </pre>
+                    )}
+
+                    {activeSnippetTab === "node" && (
+                      <pre className="text-slate-300">
+<span className="text-pink-400">const</span> fetch = <span className="text-sky-400">require</span>(<span className="text-yellow-300">'node-fetch'</span>);
+
+<span className="text-pink-400">const</span> url = <span className="text-yellow-300">'http://localhost:3000/api/apis/run/{activeDocsApi.id}'</span>;
+<span className="text-pink-400">const</span> options = {'{'}
+  method: <span className="text-yellow-300">'POST'</span>,
+  headers: {'{'}
+    <span className="text-yellow-300">'Content-Type'</span>: <span className="text-yellow-300">'application/json'</span>,
+    <span className="text-yellow-300">'x-api-key'</span>: <span className="text-yellow-300">'sec_live_YOUR_KEY_HERE'</span>
+  {'}'},
+  body: <span className="text-emerald-400">JSON</span>.stringify({'{'}
+    parameters: {JSON.stringify(activeDocsApi.clarifications.dynamicParameters.reduce((acc: any, p: any) => {
+      acc[p.name] = p.defaultValue;
+      return acc;
+    }, {}), null, 4).replace(/\n/g, '\n    ')}
+  {'}'})
+{'}'};
+
+fetch(url, options)
+  .then(res {`=>`} res.json())
+  .then(json {`=>`} console.log(json))
+  .catch(err {`=>`} console.error(<span className="text-yellow-300">'error:'</span>, err));
+                      </pre>
+                    )}
+
+                    {activeSnippetTab === "go" && (
+                      <pre className="text-slate-300">
+<span className="text-pink-400">package</span> main
+
+<span className="text-pink-400">import</span> (
+	<span className="text-yellow-300">"bytes"</span>
+	<span className="text-yellow-300">"fmt"</span>
+	<span className="text-yellow-300">"net/http"</span>
+	<span className="text-yellow-300">"io/ioutil"</span>
+)
+
+<span className="text-pink-400">func</span> <span className="text-sky-400">main</span>() {'{'}
+	url := <span className="text-yellow-300">"http://localhost:3000/api/apis/run/{activeDocsApi.id}"</span>
+	payload := []<span className="text-emerald-400">byte</span>(<span className="text-yellow-300">`{"{"}"parameters": {JSON.stringify(activeDocsApi.clarifications.dynamicParameters.reduce((acc: any, p: any) => {
+    acc[p.name] = p.defaultValue;
+    return acc;
+  }, {}))} {"}"}`</span>)
+
+	req, _ := http.NewRequest(<span className="text-yellow-300">"POST"</span>, url, bytes.NewBuffer(payload))
+	req.Header.Add(<span className="text-yellow-300">"Content-Type"</span>, <span className="text-yellow-300">"application/json"</span>)
+	req.Header.Add(<span className="text-yellow-300">"x-api-key"</span>, <span className="text-yellow-300">"sec_live_YOUR_KEY_HERE"</span>)
+
+	res, _ := http.DefaultClient.Do(req)
+	<span className="text-pink-400">defer</span> res.Body.Close()
+
+	body, _ := ioutil.ReadAll(res.Body)
+	fmt.Println(<span className="text-sky-400">string</span>(body))
+{'}'}
+                      </pre>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
