@@ -118,18 +118,19 @@ export async function executePuppeteerSteps(
           if (!step.selector) throw new Error("Click step missing selector");
           
           // Booking.com: If calendar is already open, skip toggling it shut
-          if (step.selector.includes("SearchBoxDesktop") && (step.selector.includes("div:nth-of-type(2)") || step.selector.includes("div:nth-child(2)"))) {
+          if (step.selector.includes("SearchBoxDesktop") || step.selector.includes("date-display-field") || step.selector.includes("searchbox-datepicker") || step.selector.includes("searchbox-dates-container")) {
             const isCalendarOpen = await page.evaluate(() => {
               const picker = document.querySelector("#calendar-searchboxdatepicker, [data-testid='searchbox-datepicker-calendar']");
               if (picker) {
                 const rect = picker.getBoundingClientRect();
-                return rect.width > 0 && rect.height > 0;
+                const style = window.getComputedStyle(picker);
+                return rect.width > 0 && rect.height > 0 && style.opacity !== '0' && style.visibility !== 'hidden' && style.display !== 'none';
               }
               return false;
             });
             if (isCalendarOpen) {
               console.log("[Puppeteer Override] Skipping date toggler click since calendar is already open.");
-              break;
+              continue; // Move to next step instead of break, to avoid skipping the rest of the loop block
             }
           }
           
@@ -145,38 +146,174 @@ export async function executePuppeteerSteps(
           let sel = normalizeSelector(step.selector);
           
           // Booking.com calendar date selection normalization override for older recorded APIs
-          if (step.selector.includes("calendar-searchboxdatepicker") || (step.selector.includes("table") && step.selector.includes("tbody") && step.selector.includes("td"))) {
+          if (
+            step.selector.includes("calendar-searchboxdatepicker") || 
+            (step.selector.includes("table") && step.selector.includes("tbody") && step.selector.includes("td")) ||
+            step.selector.includes("data-date") ||
+            step.selector.includes("date-date")
+          ) {
             dateClickCount++;
             const targetDate = dateClickCount === 1 ? params.checkin : params.checkout;
             if (targetDate) {
               console.log(`[Puppeteer Override] Mapping calendar click to target date: ${targetDate}`);
-              sel = `[data-date="${targetDate}"], td[data-date="${targetDate}"], span[data-date="${targetDate}"]`;
               
+              const isDateVisibleFn = `(tDate) => {
+                const [y, m, d] = tDate.split('-');
+                const dateObj = new Date(y, m - 1, d);
+                const monthName = dateObj.toLocaleString('en-US', { month: 'long' });
+                const shortMonth = dateObj.toLocaleString('en-US', { month: 'short' });
+                const dayNum = parseInt(d, 10).toString();
+                
+                const allEls = Array.from(document.querySelectorAll('*'));
+                for (const e of allEls) {
+                  const aria = e.getAttribute('aria-label');
+                  if (aria && aria.includes(dayNum) && (aria.includes(monthName) || aria.includes(shortMonth)) && aria.includes(y)) return true;
+                  if (e.getAttribute('data-date') === tDate) return true;
+                }
+                
+                const headers = Array.from(document.querySelectorAll('h2, h3, h4, div')).filter(el => {
+                   const txt = el.textContent || "";
+                   return txt.length < 50 && (txt.includes(monthName) || txt.includes(shortMonth)) && txt.includes(y);
+                });
+                
+                for (const header of headers) {
+                   let parent = header.parentElement;
+                   let grid = null;
+                   for (let i=0; i<4; i++) {
+                      if (!parent) break;
+                      grid = parent.querySelector('table, [role="grid"], .bui-calendar__month');
+                      if (grid) break;
+                      parent = parent.parentElement;
+                   }
+                   if (grid) {
+                      const cells = Array.from(grid.querySelectorAll('td, span, div, [role="gridcell"]'));
+                      for (const cell of cells) {
+                         if (cell.textContent.trim() === dayNum) return true;
+                      }
+                   }
+                }
+                return false;
+              }`;
+
+              const clickDateFn = `(tDate) => {
+                const [y, m, d] = tDate.split('-');
+                const dateObj = new Date(y, m - 1, d);
+                const monthName = dateObj.toLocaleString('en-US', { month: 'long' });
+                const shortMonth = dateObj.toLocaleString('en-US', { month: 'short' });
+                const dayNum = parseInt(d, 10).toString();
+                
+                const allEls = Array.from(document.querySelectorAll('*'));
+                for (const e of allEls) {
+                  const aria = e.getAttribute('aria-label');
+                  if (aria && aria.includes(dayNum) && (aria.includes(monthName) || aria.includes(shortMonth)) && aria.includes(y)) { e.click(); return true; }
+                  if (e.getAttribute('data-date') === tDate) { e.click(); return true; }
+                }
+                
+                const headers = Array.from(document.querySelectorAll('h2, h3, h4, div')).filter(el => {
+                   const txt = el.textContent || "";
+                   return txt.length < 50 && (txt.includes(monthName) || txt.includes(shortMonth)) && txt.includes(y);
+                });
+                
+                for (const header of headers) {
+                   let parent = header.parentElement;
+                   let grid = null;
+                   for (let i=0; i<4; i++) {
+                      if (!parent) break;
+                      grid = parent.querySelector('table, [role="grid"], .bui-calendar__month');
+                      if (grid) break;
+                      parent = parent.parentElement;
+                   }
+                   if (grid) {
+                      const cells = Array.from(grid.querySelectorAll('td, span, div, [role="gridcell"]'));
+                      for (const cell of cells) {
+                         if (cell.textContent.trim() === dayNum) {
+                            cell.click();
+                            return true;
+                         }
+                      }
+                   }
+                }
+                return false;
+              }`;
+
               try {
+                // Take debug screenshot
+                await page.screenshot({ path: `C:\\Users\\assha\\.gemini\\antigravity\\brain\\453ff0e0-2bcc-4e80-82ae-f12b7084f195\\screenshot_before_calendar_eval_${dateClickCount}.png` });
+                
+                // Force open calendar if it's closed
+                const isCalOpen = await page.evaluate(() => {
+                   const picker = document.querySelector("#calendar-searchboxdatepicker, [data-testid='searchbox-datepicker-calendar']");
+                   if (picker) {
+                     const rect = picker.getBoundingClientRect();
+                     const style = window.getComputedStyle(picker);
+                     return rect.width > 0 && rect.height > 0 && style.opacity !== '0' && style.visibility !== 'hidden' && style.display !== 'none';
+                   }
+                   return false;
+                });
+                if (!isCalOpen) {
+                   console.log("[Puppeteer Override] Calendar is closed! Forcefully opening it...");
+                   await page.evaluate(() => {
+                      const btn = document.querySelector('button[data-testid="searchbox-dates-container"]') as HTMLElement;
+                      if (btn) btn.click();
+                   });
+                   await new Promise(r => setTimeout(r, 1000));
+                }
+
                 // Check if element is already present in DOM
-                const exists = await page.evaluate((s) => !!document.querySelector(s), sel);
+                let exists = await page.evaluate(eval(isDateVisibleFn), targetDate);
                 if (!exists) {
-                  console.log(`[Puppeteer Override] Date element not visible. Navigating calendar months...`);
-                  // Click next button up to 4 times
-                  for (let m = 0; m < 4; m++) {
-                    const nextBtn = 'button[aria-label="Next month"], div[class*="next-button"], .bui-calendar__control--next';
-                    const nextExists = await page.evaluate((nb) => {
-                      const btn = document.querySelector(nb) as HTMLElement;
-                      if (btn) { btn.click(); return true; }
-                      return false;
-                    }, nextBtn);
-                    if (!nextExists) break;
-                    await new Promise((r) => setTimeout(r, 600));
-                    // Check if date element appeared
-                    const appeared = await page.evaluate((s) => !!document.querySelector(s), sel);
-                    if (appeared) {
-                      console.log(`[Puppeteer Override] Found target date element after calendar navigation.`);
-                      break;
-                    }
+                  console.log(`[Puppeteer Override] Date element not visible. Resetting calendar to earliest month...`);
+                  // First, click previous month until disabled (to reach the earliest possible month)
+                  for (let m = 0; m < 12; m++) {
+                     const prevExists = await page.evaluate(() => {
+                        const prevBtn = document.querySelector('button[aria-label="Previous month"], div[class*="prev-button"], .bui-calendar__control--prev, button[aria-label="Previous Month"]');
+                        if (prevBtn && !prevBtn.hasAttribute('disabled') && prevBtn.getAttribute('aria-disabled') !== 'true') {
+                           prevBtn.click();
+                           return true;
+                        }
+                        return false;
+                     });
+                     if (!prevExists) break;
+                     await new Promise((r) => setTimeout(r, 600));
+                  }
+                  
+                  // Now check if it's visible after reset
+                  exists = await page.evaluate(eval(isDateVisibleFn), targetDate);
+                  
+                  if (!exists) {
+                     console.log(`[Puppeteer Override] Navigating calendar months forward...`);
+                     for (let m = 0; m < 24; m++) {
+                       const nextBtn = 'button[aria-label="Next month"], div[class*="next-button"], .bui-calendar__control--next, button[aria-label="Next Month"]';
+                       const nextExists = await page.evaluate((nb) => {
+                         const btn = document.querySelector(nb);
+                         if (btn && !btn.hasAttribute('disabled')) { btn.click(); return true; }
+                         return false;
+                       }, nextBtn);
+                       if (!nextExists) break;
+                       await new Promise((r) => setTimeout(r, 600));
+                       const appeared = await page.evaluate(eval(isDateVisibleFn), targetDate);
+                       if (appeared) {
+                         console.log(`[Puppeteer Override] Found target date element after calendar navigation.`);
+                         break;
+                       }
+                     }
                   }
                 }
+                
+                // Now perform the robust click
+                const clicked = await page.evaluate(eval(clickDateFn), targetDate);
+                if (!clicked) {
+                   throw new Error("Timeout waiting for date: " + targetDate);
+                }
+                console.log(`[Puppeteer Override] Successfully clicked robust date!`);
+                
+                // Skip the standard waitForSelector and click logic
+                await new Promise((r) => setTimeout(r, 1000 + Math.random() * 1000));
+                continue; // Move to the next step
               } catch (e) {
                 console.error("Calendar navigation error:", e);
+                // Fall back to original logic if robust click fails
+                sel = `[data-date="${targetDate}"]`;
               }
             }
           }
@@ -219,6 +356,41 @@ export async function executePuppeteerSteps(
                 }, targetTag, targetText);
               }
             }
+            if (!healed) {
+              // Hardcoded structural fallbacks for known Booking.com broken recorded selectors
+              const isOccupancyToggle = (sel.includes("button.") && sel.includes("> span > span:nth-of-type(2)")) || 
+                                        (sel.includes("button.") && sel.includes("> span") && sel.length < 30 && !sel.includes("svg") && !sel.includes("type=\"submit\""));
+              const isAdultsPlus = sel.includes("div.") && sel.includes("button:nth-of-type(2) > span > span > svg");
+              const isAdultsPlusRepeated = sel.includes("div.") && (sel.includes("button:nth-of-type") || (sel.includes("div:nth-of-type") && sel.includes("button")));
+              const isSearchButton = (sel.includes("button.") && sel.length === 17) || (sel.includes("button.") && sel.includes("span:nth-of-type(2)") && !sel.includes("svg") && !isOccupancyToggle && step.action === "click"); // e.g. button.ced67027e5 > span:nth-of-type(2)
+              
+              if (isOccupancyToggle) {
+                 console.log("[Puppeteer] Self-healing: Using structural fallback for occupancy toggle");
+                 healed = await page.evaluate(() => {
+                    const btn = document.querySelector('button[data-testid="occupancy-config"]');
+                    if (btn) { btn.click(); return true; }
+                    return false;
+                 });
+              } else if (isAdultsPlus || isAdultsPlusRepeated) {
+                 console.log("[Puppeteer] Self-healing: Using structural fallback for adults + button");
+                 healed = await page.evaluate(() => {
+                    const popup = document.querySelector('[data-testid="occupancy-popup"]');
+                    if (popup) {
+                       const plusBtn = popup.querySelectorAll('button')[1]; // usually index 1 is the + for adults
+                       if (plusBtn) { plusBtn.click(); return true; }
+                    }
+                    return false;
+                 });
+              } else if (isSearchButton) {
+                 console.log("[Puppeteer] Self-healing: Using structural fallback for search button");
+                 healed = await page.evaluate(() => {
+                    const btn = document.querySelector('button[type="submit"]');
+                    if (btn) { btn.click(); return true; }
+                    return false;
+                 });
+              }
+            }
+
             if (!healed) {
               throw err;
             }

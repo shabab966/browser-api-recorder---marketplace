@@ -116,6 +116,7 @@ export default function App() {
   const [apiRunError, setApiRunError] = useState<string | null>(null);
 
   const [integrationTab, setIntegrationTab] = useState<"url" | "curl" | "puppeteer">("url");
+  const [executionEngine, setExecutionEngine] = useState<"gemini" | "puppeteer">("gemini");
 
   const generatePuppeteerStealthCode = (api: ApiItem) => {
     let code = `/**
@@ -376,9 +377,49 @@ async function runScraper() {
     }
   };
 
+  const [adminApis, setAdminApis] = useState<ApiItem[]>([]);
+  const [adminApisLoading, setAdminApisLoading] = useState(false);
+
+  const fetchAdminApis = async () => {
+    setAdminApisLoading(true);
+    try {
+      const res = await fetch("/api/apis");
+      if (res.ok) {
+        const data = await res.json();
+        setAdminApis(data);
+      }
+    } catch (err) {
+      console.error("Failed to load admin APIs list:", err);
+    } finally {
+      setAdminApisLoading(false);
+    }
+  };
+
+  const handleAdminDeleteApi = async (apiId: string) => {
+    if (!confirm("Are you sure you want to permanently remove this API from the marketplace?")) return;
+    try {
+      const res = await fetch("/api/admin/apis/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert("API successfully removed!");
+        fetchAdminApis();
+        fetchDashboardData();
+      } else {
+        alert("Error: " + data.error);
+      }
+    } catch (err: any) {
+      alert("Delete failed: " + err.message);
+    }
+  };
+
   useEffect(() => {
     if (activeView === "admin") {
       fetchAdminTransactions();
+      fetchAdminApis();
     }
   }, [activeView]);
 
@@ -504,7 +545,8 @@ async function runScraper() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           callerId: user.id,
-          parameters: playgroundParams
+          parameters: playgroundParams,
+          engine: executionEngine
         }),
       });
 
@@ -927,10 +969,10 @@ async function runScraper() {
                           <span className="text-3xs font-semibold uppercase tracking-wide text-slate-500">Terminal Request command</span>
                           <div className="flex items-center justify-between gap-2 bg-slate-900 px-3 py-2 rounded-lg border border-slate-800/80">
                             <code className="text-indigo-400 select-all truncate text-3xs">
-                              curl -X POST "{window.location.origin}/api/apis/run/{selectedApi.id}" -H "Content-Type: application/json" -d '{JSON.stringify({ callerId: user.id, parameters: playgroundParams })}'
+                              curl -X POST "{window.location.origin}/api/apis/run/{selectedApi.id}" -H "Content-Type: application/json" -d '{JSON.stringify({ callerId: user.id, parameters: playgroundParams, engine: executionEngine })}'
                             </code>
                             <button
-                              onClick={() => handleCopyText(`curl -X POST "${window.location.origin}/api/apis/run/{selectedApi.id}" -H "Content-Type: application/json" -d '${JSON.stringify({ callerId: user.id, parameters: playgroundParams })}'`, "curlCmd")}
+                              onClick={() => handleCopyText(`curl -X POST "${window.location.origin}/api/apis/run/{selectedApi.id}" -H "Content-Type: application/json" -d '${JSON.stringify({ callerId: user.id, parameters: playgroundParams, engine: executionEngine })}'`, "curlCmd")}
                               className="text-slate-500 hover:text-white cursor-pointer bg-transparent border-none"
                             >
                               {copiedText === "curlCmd" ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
@@ -987,7 +1029,32 @@ async function runScraper() {
                       <p className="text-xs font-sans text-slate-500">This scraper scenario does not expose any custom dynamic parameters. It runs strictly static actions.</p>
                     )}
 
-                    <div className="pt-2 flex gap-3">
+                    <div className="pt-2 flex flex-col sm:flex-row sm:items-center gap-4">
+                      <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850 self-start">
+                        <button
+                          type="button"
+                          onClick={() => setExecutionEngine("gemini")}
+                          className={`px-3 py-1.5 rounded-lg text-2xs font-mono font-bold transition-all cursor-pointer ${
+                            executionEngine === "gemini"
+                              ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20 border-none"
+                              : "text-slate-400 hover:text-slate-200 bg-transparent border-none"
+                          }`}
+                        >
+                          Gemini Sim
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExecutionEngine("puppeteer")}
+                          className={`px-3 py-1.5 rounded-lg text-2xs font-mono font-bold transition-all cursor-pointer ${
+                            executionEngine === "puppeteer"
+                              ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20 border-none"
+                              : "text-slate-400 hover:text-slate-200 bg-transparent border-none"
+                          }`}
+                        >
+                          Puppeteer Live
+                        </button>
+                      </div>
+
                       <button
                         id="run-api-playground-btn"
                         onClick={() => runLiveApi(selectedApi)}
@@ -1263,6 +1330,91 @@ async function runScraper() {
                 </table>
               </div>
             </div>
+
+            {/* API MODERATION PANEL */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 mt-6">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Database className="w-5 h-5 text-rose-500" />
+                  Marketplace API Moderation Panel
+                </h2>
+                <p className="text-slate-400 text-sm mt-1 font-sans">
+                  Review and permanently remove registered scraper APIs from the marketplace registry directory.
+                </p>
+              </div>
+              <button
+                onClick={fetchAdminApis}
+                disabled={adminApisLoading}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${adminApisLoading ? "animate-spin" : ""}`} />
+                <span>Refresh Directory</span>
+              </button>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden mt-4">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs font-mono">
+                  <thead>
+                    <tr className="bg-slate-950 text-slate-400 border-b border-slate-800">
+                      <th className="p-4 font-bold uppercase tracking-wider">Scraper Name</th>
+                      <th className="p-4 font-bold uppercase tracking-wider">Creator</th>
+                      <th className="p-4 font-bold uppercase tracking-wider">Pricing</th>
+                      <th className="p-4 font-bold uppercase tracking-wider">Visibility</th>
+                      <th className="p-4 font-bold uppercase tracking-wider">Total Calls</th>
+                      <th className="p-4 font-bold uppercase tracking-wider text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {adminApis.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-12 text-center text-slate-500 font-sans">
+                          No scraper APIs registered in database directory.
+                        </td>
+                      </tr>
+                    ) : (
+                      adminApis.map((api) => (
+                        <tr key={api.id} className="hover:bg-slate-950/40 transition-colors">
+                          <td className="p-4 font-sans font-bold text-white max-w-[200px] truncate">
+                            {api.name}
+                            <span className="block text-3xs font-mono text-slate-500 truncate mt-0.5">{api.id}</span>
+                          </td>
+                          <td className="p-4 font-bold text-slate-300 font-sans">
+                            @{api.ownerName}
+                          </td>
+                          <td className="p-4 text-emerald-400 font-bold text-sm">
+                            {api.pricePerCall} BDT / Call
+                          </td>
+                          <td className="p-4">
+                            {api.isPrivate ? (
+                              <span className="px-2 py-0.5 rounded text-3xs font-bold border border-slate-850 bg-slate-950 text-slate-500">
+                                Private (Creator Only)
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded text-3xs font-bold border border-indigo-900/50 bg-indigo-950/40 text-indigo-400">
+                                Public Marketplace
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-4 text-slate-300 font-bold">
+                            {api.callsCount} calls
+                          </td>
+                          <td className="p-4 text-right">
+                            <button
+                              onClick={() => handleAdminDeleteApi(api.id)}
+                              className="px-2.5 py-1 bg-rose-950/40 border border-rose-900/50 hover:bg-rose-900/40 text-rose-400 text-3xs font-bold rounded cursor-pointer transition-all hover:border-rose-700/60"
+                            >
+                              Remove Scraper
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
           </div>
         )}
 
