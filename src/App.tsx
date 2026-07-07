@@ -5,6 +5,10 @@ import {
   ArrowRight, Landmark, ExternalLink, Code2, Copy, History, 
   ShoppingBag, Terminal, Lock, Globe, Trash2, Clock 
 } from "lucide-react";
+import { 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area 
+} from "recharts";
 import LoginScreen from "./components/LoginScreen.js";
 import MockBrowser from "./components/MockBrowser.js";
 import BkashPortal from "./components/BkashPortal.js";
@@ -85,7 +89,7 @@ interface ApiCallLog {
   createdAt: string;
 }
 
-type MainView = "workspace" | "dashboard" | "marketplace" | "admin" | "scheduler";
+type MainView = "workspace" | "dashboard" | "marketplace" | "admin" | "scheduler" | "analytics";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(() => {
@@ -699,6 +703,15 @@ async function runScraper() {
           >
             <Clock className="w-3.5 h-3.5" />
             <span>Scheduler</span>
+          </button>
+
+          <button
+            id="nav-analytics-btn"
+            onClick={() => { setActiveView("analytics"); fetchDashboardData(); setExecutionResult(null); }}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${activeView === "analytics" ? "bg-emerald-600 text-white shadow-lg" : "text-slate-400 hover:text-slate-200"}`}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>Analytics</span>
           </button>
 
           <button
@@ -1417,6 +1430,138 @@ async function runScraper() {
             </div>
           </div>
         )}
+
+        {/* ANALYTICS VIEW */}
+        {activeView === "analytics" && (() => {
+          const myApiLogs = callLogs.filter(log => myApis.some(api => api.id === log.apiId));
+
+          const latencyData = myApiLogs.map(log => ({
+            time: new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            latency: log.executionTimeMs || 0,
+            apiName: log.apiName
+          })).slice(-20); // last 20
+
+          const successCount = myApiLogs.filter(log => log.status === "success").length;
+          const errorCount = myApiLogs.length - successCount;
+          const pieData = [
+            { name: "Success", value: successCount },
+            { name: "Error", value: errorCount }
+          ];
+          const pieColors = ["#10b981", "#f43f5e"];
+
+          const earningsMap: Record<string, number> = {};
+          myApiLogs.forEach(log => {
+            if (log.callerId !== user?.id && log.status === "success") {
+              const dateStr = new Date(log.createdAt).toLocaleDateString();
+              earningsMap[dateStr] = (earningsMap[dateStr] || 0) + log.cost;
+            }
+          });
+          const earningsData = Object.keys(earningsMap).map(date => ({
+            date,
+            revenue: earningsMap[date]
+          }));
+
+          return (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="mb-8">
+                <h1 className="text-3xl font-bold text-slate-100 flex items-center gap-3">
+                  <Activity className="w-8 h-8 text-emerald-500" />
+                  Analytics & Health
+                </h1>
+                <p className="text-slate-400 mt-2">Deep insights into your APIs' execution speeds, reliability, and revenue generated.</p>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                {/* Latency Chart */}
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+                  <h2 className="text-lg font-bold text-slate-200 mb-6 flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-indigo-400" /> API Latency (ms)
+                  </h2>
+                  <div className="h-64 w-full">
+                    {latencyData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={latencyData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                          <XAxis dataKey="time" stroke="#94a3b8" fontSize={12} />
+                          <YAxis stroke="#94a3b8" fontSize={12} />
+                          <RechartsTooltip 
+                            contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f8fafc' }}
+                            itemStyle={{ color: '#818cf8' }}
+                          />
+                          <Line type="monotone" dataKey="latency" stroke="#818cf8" strokeWidth={3} dot={{ r: 4, fill: '#818cf8', strokeWidth: 0 }} activeDot={{ r: 6 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-slate-500">No data available</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Success/Error Rate */}
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+                  <h2 className="text-lg font-bold text-slate-200 mb-6 flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-emerald-400" /> Success vs Error Rate
+                  </h2>
+                  <div className="h-64 w-full">
+                    {myApiLogs.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={pieData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={80}
+                            paddingAngle={5}
+                            dataKey="value"
+                          >
+                            {pieData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={pieColors[index % pieColors.length]} />
+                            ))}
+                          </Pie>
+                          <RechartsTooltip 
+                            contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f8fafc' }}
+                            itemStyle={{ color: '#f8fafc' }}
+                          />
+                          <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-slate-500">No data available</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Earnings Chart */}
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+                <h2 className="text-lg font-bold text-slate-200 mb-6 flex items-center gap-2">
+                  <Wallet className="w-5 h-5 text-amber-400" /> Revenue (BDT)
+                </h2>
+                <div className="h-72 w-full">
+                  {earningsData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={earningsData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                        <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} />
+                        <YAxis stroke="#94a3b8" fontSize={12} />
+                        <RechartsTooltip 
+                          cursor={{ fill: '#1e293b' }}
+                          contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f8fafc' }}
+                          itemStyle={{ color: '#fbbf24' }}
+                        />
+                        <Bar dataKey="revenue" fill="#fbbf24" radius={[4, 4, 0, 0]} barSize={40} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-slate-500">No earnings data available yet. Share your APIs to start earning!</div>
+                  )}
+                </div>
+              </div>
+
+            </div>
+          );
+        })()}
 
         {activeView === "admin" && (
           <div className="space-y-6 animate-fadeIn">
