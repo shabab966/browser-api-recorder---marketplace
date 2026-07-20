@@ -2,14 +2,20 @@ import { GoogleGenAI, Type } from "@google/genai";
 
 // Initialize the Google GenAI client as per system guidelines
 // Note: process.env.GEMINI_API_KEY is automatically injected by the environment
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY || "",
-  httpOptions: {
-    headers: {
-      "User-Agent": "aistudio-build",
-    },
-  },
-});
+let aiInstance: GoogleGenAI | null = null;
+function getAI() {
+  if (!aiInstance) {
+    aiInstance = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY || "",
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
+  }
+  return aiInstance;
+}
 
 interface BrowserStep {
   id: string;
@@ -35,7 +41,7 @@ ${JSON.stringify(steps, null, 2)}
 Provide a structured JSON output with the exact schema. Do not output anything else.
 `;
 
-    const response = await ai.models.generateContent({
+    const response = await getAI().models.generateContent({
       model: "gemini-3.5-flash",
       contents: prompt,
       config: {
@@ -214,7 +220,7 @@ ${JSON.stringify(params, null, 2)}
 Do not add any explanations or comments, only return the raw JSON object/array.
 `;
 
-    const response = await ai.models.generateContent({
+    const response = await getAI().models.generateContent({
       model: "gemini-3.5-flash",
       contents: prompt,
       config: {
@@ -255,7 +261,7 @@ ${JSON.stringify(scrapeResult)}
 Does the output satisfy the user's rule? Answer strictly in JSON format with a boolean "conditionMet".
 `;
 
-    const response = await ai.models.generateContent({
+    const response = await getAI().models.generateContent({
       model: "gemini-3.5-flash",
       contents: prompt,
       config: {

@@ -3,7 +3,7 @@ import {
   Activity, Play, StopCircle, RefreshCw, Layers, ShieldCheck, 
   Wallet, Puzzle, Plus, HelpCircle, Check, Database, Sparkles, 
   ArrowRight, Landmark, ExternalLink, Code2, Copy, History, 
-  ShoppingBag, Terminal, Lock, Globe, Trash2, Clock, Key, LogOut
+  ShoppingBag, Terminal, Lock, Globe, Trash2, Clock, Key, LogOut, Menu, X
 } from "lucide-react";
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
@@ -141,6 +141,7 @@ export default function App() {
   const [apiDesc, setApiDesc] = useState("");
   const [apiPrice, setApiPrice] = useState("2");
   const [apiIsPrivate, setApiIsPrivate] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Dashboard & Marketplace Data
   const [myApis, setMyApis] = useState<ApiItem[]>([]);
@@ -682,19 +683,27 @@ async function runScraper() {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       
       {/* Global Header */}
-      <header className="bg-slate-900 border-b border-slate-800/80 sticky top-0 z-40 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-gradient-to-tr from-indigo-500 to-pink-500 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/10">
-            <Activity className="w-5 h-5 text-white" />
+      <header className="bg-slate-900 border-b border-slate-800/80 sticky top-0 z-40 px-4 md:px-6 py-4 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+        <div className="flex items-center justify-between w-full xl:w-auto">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-gradient-to-tr from-indigo-500 to-pink-500 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/10 shrink-0">
+              <Activity className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="font-extrabold text-white text-base md:text-lg tracking-tight">Recorded Browser APIs</h1>
+              <p className="text-slate-400 text-xs font-sans hidden sm:block">bKash SMS billing integration & Marketplace console</p>
+            </div>
           </div>
-          <div>
-            <h1 className="font-extrabold text-white text-lg tracking-tight">Recorded Browser APIs</h1>
-            <p className="text-slate-400 text-xs font-sans">bKash SMS billing integration & Marketplace console</p>
-          </div>
+          <button 
+            className="xl:hidden p-2 text-slate-400 hover:text-white"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          >
+            {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
         </div>
 
         {/* Global Navigation Toggles */}
-        <div className="flex items-center bg-slate-950 p-1 border border-slate-800 rounded-xl">
+        <div className={`${isMobileMenuOpen ? 'flex' : 'hidden'} xl:flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center bg-slate-950 p-1 border border-slate-800 rounded-xl gap-1`}>
           <button
             id="nav-workspace-btn"
             onClick={() => { setActiveView("workspace"); setExecutionResult(null); }}
@@ -762,13 +771,13 @@ async function runScraper() {
         </div>
 
         {/* User Stats & bKash Deposit */}
-        <div className="flex items-center gap-3 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
-          <div className="px-3 py-1 text-right">
+        <div className={`${isMobileMenuOpen ? 'flex' : 'hidden'} xl:flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-slate-950 p-1.5 rounded-xl border border-slate-800`}>
+          <div className="px-3 py-1 text-left sm:text-right">
             <p className="text-slate-400 text-2xs font-mono">DEVELOPER SESSION</p>
             <p className="text-slate-200 text-sm font-semibold">@{user.username}</p>
           </div>
 
-          <div className="h-6 w-px bg-slate-800"></div>
+          <div className="hidden sm:block h-6 w-px bg-slate-800"></div>
 
           <div className="px-3 py-1">
             <p className="text-slate-400 text-2xs font-mono">WALLET BALANCE</p>
@@ -1239,11 +1248,11 @@ async function runScraper() {
                         </div>
 
                         {apiRunError ? (
-                          <pre className="p-4 text-xs text-red-400 font-mono whitespace-pre-wrap leading-relaxed">
+                          <pre className="p-4 pb-8 text-xs text-red-400 font-mono whitespace-pre-wrap break-words leading-relaxed">
                             Error: {apiRunError}
                           </pre>
                         ) : (
-                          <pre className="p-4 text-2xs text-slate-300 font-mono whitespace-pre-wrap overflow-auto max-h-[300px] leading-relaxed">
+                          <pre className="p-4 pb-8 text-2xs text-slate-300 font-mono whitespace-pre-wrap break-words overflow-y-auto max-h-[300px] leading-relaxed">
                             {JSON.stringify(executionResult?.data, null, 2)}
                           </pre>
                         )}

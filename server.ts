@@ -1,4 +1,7 @@
 import express, { Request, Response, NextFunction } from "express";
+import dotenv from "dotenv";
+dotenv.config({ path: ".env.local" });
+dotenv.config();
 import cors from "cors";
 import path from "path";
 import { createServer as createViteServer } from "vite";

@@ -452,9 +452,9 @@ updateUI();`
 
   return (
     <div id="chrome-extension-guide" className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl flex items-center justify-center">
+          <div className="w-10 h-10 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl flex items-center justify-center shrink-0">
             <Puzzle className="w-5 h-5" />
           </div>
           <div>
@@ -465,7 +465,7 @@ updateUI();`
         <button
           id="download-extension-btn"
           onClick={handleDownloadZip}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-xs flex items-center gap-1.5 cursor-pointer transition-all"
+          className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
         >
           <Download className="w-3.5 h-3.5" />
           <span>Download Source Pack</span>
