@@ -107,7 +107,7 @@ async function startServer() {
     const passwordHash = bcrypt.hashSync(password, 10);
     const user = dbStore.createUser(cleanUsername, passwordHash);
 
-    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '30d' });
     return res.json({ user, token });
   });
 
@@ -126,7 +126,7 @@ async function startServer() {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '30d' });
     return res.json({ user, token });
   });
 
