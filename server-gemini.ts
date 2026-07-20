@@ -42,7 +42,7 @@ Provide a structured JSON output with the exact schema. Do not output anything e
 `;
 
     const response = await getAI().models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-flash-latest",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -221,7 +221,7 @@ Do not add any explanations or comments, only return the raw JSON object/array.
 `;
 
     const response = await getAI().models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-flash-latest",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
