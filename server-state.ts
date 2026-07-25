@@ -106,6 +106,11 @@ let store: DataStore = {
 // Initial setup with a pre-created demo user or sample APIs
 function loadStore() {
   try {
+    const dir = path.dirname(STORE_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
     if (fs.existsSync(STORE_FILE)) {
       const content = fs.readFileSync(STORE_FILE, "utf-8");
       store = JSON.parse(content);
@@ -187,6 +192,10 @@ function loadStore() {
 
 export function saveStore() {
   try {
+    const dir = path.dirname(STORE_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
     fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2), "utf-8");
   } catch (err) {
     console.error("Failed to save data-store:", err);
