@@ -2508,7 +2508,7 @@ fetch(url, options)
               </div>
             )}
           </div>
-        )}}
+        )}
 
       </main>
 
