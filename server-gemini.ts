@@ -98,6 +98,20 @@ Analyze these steps and generate:
 Recorded interactions:
 ${JSON.stringify(steps, null, 2)}
 
+You MUST return a JSON object with this exact key structure:
+{
+  "explanation": "string summary of what the recorded steps do",
+  "questions": ["string containing clarify question 1", "string containing clarify question 2"],
+  "dynamicParameters": [
+    {
+      "name": "string (parameter name, e.g., 'search', 'limit')",
+      "type": "string ('string' | 'number' | 'boolean')",
+      "description": "string explaining what this parameter controls",
+      "defaultValue": "string default value"
+    }
+  ]
+}
+
 Provide a structured JSON output with the exact schema. Do not output anything else.
 `;
 
