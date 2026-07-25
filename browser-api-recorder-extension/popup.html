@@ -38,6 +38,7 @@
     }
     .status-idle { background: #475569; color: #f8fafc; }
     .status-recording { background: #ef4444; color: white; animation: pulse 1.5s infinite; }
+    .status-connected { background: #10b981; color: white; }
     @keyframes pulse {
       0% { opacity: 1; }
       50% { opacity: 0.5; }
@@ -58,12 +59,16 @@
       gap: 6px;
       transition: background 0.2s;
     }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
     .btn-rec { background: #ef4444; color: white; }
     .btn-rec:hover { background: #dc2626; }
     .btn-stop { background: #475569; color: white; }
     .btn-stop:hover { background: #334155; }
     .btn-sync { background: #10b981; color: white; }
-    .btn-sync:hover { background: #059669; }
+    .btn-sync:hover:not(:disabled) { background: #059669; }
     .btn-clear { background: #e2e8f0; color: #0f172a; }
     .btn-clear:hover { background: #cbd5e1; }
     
@@ -117,25 +122,24 @@
 </head>
 <body>
   <h3>🔌 API Recorder Pro</h3>
-  
+  <div class="status-container">
+    <span>Workspace:</span>
+    <span id="connectionBadge" class="status-badge status-idle">Checking...</span>
+  </div>
   <div class="status-container">
     <span>Status:</span>
     <span id="statusBadge" class="status-badge status-idle">Idle</span>
   </div>
-
   <button id="recBtn" class="btn-rec">🔴 Start Recording</button>
   <button id="syncBtn" class="btn-sync" disabled>💾 Send to Marketplace</button>
   <button id="clearBtn" class="btn-clear">🧹 Clear Steps</button>
-  
   <div id="msgBox" class="message"></div>
-
   <div class="steps-container">
     <div class="steps-title">Recorded Steps (<span id="stepCount">0</span>)</div>
     <ul id="stepsList" class="steps-list">
       <div class="empty-steps">No steps recorded yet. Click Start Recording and click around a website.</div>
     </ul>
   </div>
-
   <script src="popup.js"></script>
 </body>
 </html>

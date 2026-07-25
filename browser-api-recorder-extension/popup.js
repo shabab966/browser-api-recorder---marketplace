@@ -1,4 +1,5 @@
 const statusBadge = document.getElementById("statusBadge");
+const connectionBadge = document.getElementById("connectionBadge");
 const recBtn = document.getElementById("recBtn");
 const syncBtn = document.getElementById("syncBtn");
 const clearBtn = document.getElementById("clearBtn");
@@ -9,13 +10,27 @@ const msgBox = document.getElementById("msgBox");
 let isRecording = false;
 let recordedSteps = [];
 
-// Update UI on load
+async function detectMarketplace() {
+  const allTabs = await chrome.tabs.query({});
+  const marketplaceTab = allTabs.find(tab => tab.url && (tab.url.includes("localhost:3000") || tab.url.includes("127.0.0.1:3000")));
+  if (marketplaceTab) {
+    connectionBadge.textContent = "Connected";
+    connectionBadge.className = "status-badge status-connected";
+    connectionBadge.style.background = "#10b981";
+    syncBtn.disabled = recordedSteps.length === 0;
+  } else {
+    connectionBadge.textContent = "Offline";
+    connectionBadge.className = "status-badge status-idle";
+    connectionBadge.style.background = "#64748b";
+    syncBtn.disabled = true;
+  }
+}
+
 function updateUI() {
   chrome.storage.local.get({ isRecording: false, steps: [] }, (data) => {
     isRecording = data.isRecording;
     recordedSteps = data.steps;
 
-    // Update button & badge
     if (isRecording) {
       statusBadge.textContent = "Recording";
       statusBadge.className = "status-badge status-recording";
@@ -28,7 +43,6 @@ function updateUI() {
       recBtn.className = "btn-rec";
     }
 
-    // Update steps list
     stepCount.textContent = recordedSteps.length;
     stepsList.innerHTML = "";
     if (recordedSteps.length === 0) {
@@ -36,7 +50,6 @@ function updateUI() {
       emptyDiv.className = "empty-steps";
       emptyDiv.textContent = "No steps recorded yet. Click Start Recording and click around a website.";
       stepsList.appendChild(emptyDiv);
-      syncBtn.disabled = true;
     } else {
       recordedSteps.forEach((step, index) => {
         const li = document.createElement("li");
@@ -44,22 +57,19 @@ function updateUI() {
         li.textContent = `${index + 1}. [${step.action}] ${step.description}`;
         stepsList.appendChild(li);
       });
-      syncBtn.disabled = false;
     }
+    
+    detectMarketplace();
   });
 }
 
-// Toggle Recording
 recBtn.addEventListener("click", async () => {
   const nextRecordingState = !isRecording;
-  
   if (nextRecordingState) {
-    // Starting recording - get the active tab to add a navigate step
     const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (activeTab && activeTab.url) {
       chrome.storage.local.get({ steps: [] }, (data) => {
         const steps = data.steps;
-        // Only add navigate step if steps are empty
         if (steps.length === 0) {
           const navigateStep = {
             id: "step-" + Math.random().toString(36).substring(2, 9),
@@ -82,13 +92,11 @@ recBtn.addEventListener("click", async () => {
       return;
     }
   }
-  
   chrome.storage.local.set({ isRecording: false }, () => {
     updateUI();
   });
 });
 
-// Clear steps
 clearBtn.addEventListener("click", () => {
   chrome.storage.local.set({ steps: [] }, () => {
     updateUI();
@@ -96,7 +104,6 @@ clearBtn.addEventListener("click", () => {
   });
 });
 
-// Sync / Send to Marketplace
 syncBtn.addEventListener("click", async () => {
   showMessage("Syncing steps...", "");
   chrome.storage.local.get({ steps: [] }, async (data) => {
@@ -106,12 +113,10 @@ syncBtn.addEventListener("click", async () => {
       return;
     }
 
-    // Query all tabs to find the Marketplace app tab
     const allTabs = await chrome.tabs.query({});
     const marketplaceTab = allTabs.find(tab => tab.url && (tab.url.includes("localhost:3000") || tab.url.includes("127.0.0.1:3000")));
     
     if (marketplaceTab) {
-      // Execute script on the found Marketplace tab
       chrome.scripting.executeScript({
         target: { tabId: marketplaceTab.id },
         func: (stepsData) => {
@@ -120,14 +125,12 @@ syncBtn.addEventListener("click", async () => {
         args: [steps]
       }, async () => {
         showMessage("Successfully synced with Marketplace!", "success-msg");
-        // Focus the marketplace tab and its window
         await chrome.tabs.update(marketplaceTab.id, { active: true });
         if (marketplaceTab.windowId) {
           await chrome.windows.update(marketplaceTab.windowId, { focused: true });
         }
       });
     } else {
-      // If not open, open http://localhost:3000 and sync once loaded
       try {
         const newTab = await chrome.tabs.create({ url: "http://localhost:3000" });
         const listener = (tabId, changeInfo) => {
@@ -161,12 +164,10 @@ function showMessage(text, className) {
   }, 4000);
 }
 
-// Listen for step updates from background script
 chrome.runtime.onMessage.addListener((message) => {
   if (message.type === "STEPS_UPDATED") {
     updateUI();
   }
 });
 
-// Initial load
 updateUI();
