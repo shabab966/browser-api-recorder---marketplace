@@ -13,7 +13,7 @@ export default function ApiClientCard() {
     { key: "Content-Type", value: "application/json" },
     { key: "x-api-key", value: "sec_live_YOUR_KEY_HERE" }
   ]);
-  const [body, setBody] = useState('{\n  "parameters": {\n    "limit": 10\n  }\n}');
+  const [body, setBody] = useState('{\n  "engine": "puppeteer",\n  "parameters": {\n    "limit": 10\n  }\n}');
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<any | null>(null);
   const [status, setStatus] = useState<number | null>(null);
