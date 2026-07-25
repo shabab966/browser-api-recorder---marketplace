@@ -1,10 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import Groq from "groq-sdk";
 
-// Detect active LLM providers
-const isGroq = !!process.env.GROQ_API_KEY;
-console.log(`[LLM Service] Active provider detected: ${isGroq ? "Groq (Llama 3.3)" : "Google Gemini"}`);
-
 // Initialize Google GenAI client
 let aiInstance: GoogleGenAI | null = null;
 function getAI() {
@@ -42,9 +38,17 @@ export interface BrowserStep {
   description: string;
 }
 
+let loggedProvider = false;
+
 // Abstracted LLM wrapper supporting both JSON mode and text prompts
 async function queryLLM(prompt: string, expectJson: boolean = false, jsonSchema?: any): Promise<string> {
-  if (isGroq) {
+  const isGroqActive = !!process.env.GROQ_API_KEY;
+  if (!loggedProvider) {
+    console.log(`[LLM Service] Active provider evaluated at runtime: ${isGroqActive ? "Groq (Llama 3.3)" : "Google Gemini"}`);
+    loggedProvider = true;
+  }
+
+  if (isGroqActive) {
     try {
       const groq = getGroq();
       const response = await groq.chat.completions.create({
