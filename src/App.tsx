@@ -21,7 +21,7 @@ const apiFetch = async (url: string, options: any = {}) => {
 };
 import MockBrowser from "./components/MockBrowser.js";
 import BkashPortal from "./components/BkashPortal.js";
-import ChromeExtensionCard from "./components/ChromeExtensionCard.js";
+import ApiClientCard from "./components/ApiClientCard.js";
 
 export interface ApiSchedule {
   id: string;
@@ -1026,7 +1026,7 @@ async function runScraper() {
                 </div>
               )}
               <div className="mt-6">
-                <ChromeExtensionCard />
+                <ApiClientCard />
               </div>
             </div>
 
