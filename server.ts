@@ -58,6 +58,8 @@ const authenticateJWT = (req: Request, res: Response, next: NextFunction) => {
 };
 
 async function startServer() {
+  await dbStore.initialize();
+
   const adminUsername = process.env.ADMIN_USERNAME;
   const adminPassword = process.env.ADMIN_PASSWORD;
   if (adminUsername && adminPassword) {

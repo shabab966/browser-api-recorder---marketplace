@@ -1,5 +1,7 @@
 import fs from "fs";
 import path from "path";
+import pg from "pg";
+const { Pool } = pg;
 
 export interface ApiKey {
   key: string;
@@ -95,6 +97,75 @@ interface DataStore {
   schedules: ApiSchedule[];
 }
 
+const defaultInitialStore: DataStore = {
+  users: {
+    "demo-user": {
+      id: "demo-user",
+      username: "shabab",
+      balance: 50,
+      freeAttemptsUsed: {},
+      createdAt: new Date().toISOString(),
+    },
+  },
+  apis: {
+    "hn-scraper": {
+      id: "hn-scraper",
+      ownerId: "demo-user",
+      ownerName: "shabab",
+      name: "Hacker News Scraper",
+      description: "Automatically extracts top stories, headlines, and score links from Hacker News in real time.",
+      isPrivate: false,
+      pricePerCall: 2,
+      steps: [
+        {
+          id: "step-1",
+          action: "navigate",
+          url: "https://news.ycombinator.com",
+          description: "Navigate to Hacker News",
+        },
+        {
+          id: "step-2",
+          action: "scrape",
+          selector: ".titleline",
+          description: "Scrape article titles and URLs",
+        },
+      ],
+      clarifications: {
+        explanation: "This API extracts the front-page articles from Hacker News, outputting their titles and corresponding URLs as a clean list.",
+        questions: [
+          "Should this API allow limiting the number of scraped stories via a query parameter?",
+          "Would you like to include story scores (points) in the scrape target?"
+        ],
+        dynamicParameters: [
+          {
+            name: "limit",
+            type: "number",
+            description: "Maximum stories to return (default 10)",
+            defaultValue: "10"
+          }
+        ]
+      },
+      callsCount: 14,
+      revenueEarned: 28,
+      createdAt: new Date().toISOString(),
+    },
+  },
+  transactions: [
+    {
+      id: "tx-1",
+      userId: "demo-user",
+      username: "shabab",
+      amount: 50,
+      trxId: "BK91A0Z8X",
+      senderNumber: "01711750169",
+      status: "approved",
+      createdAt: new Date().toISOString(),
+    }
+  ],
+  logs: [],
+  schedules: []
+};
+
 let store: DataStore = {
   users: {},
   apis: {},
@@ -103,8 +174,51 @@ let store: DataStore = {
   schedules: [],
 };
 
-// Initial setup with a pre-created demo user or sample APIs
-function loadStore() {
+const isPg = !!process.env.DATABASE_URL;
+let pgPool: pg.Pool | null = null;
+let isInitialized = false;
+
+if (isPg) {
+  pgPool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false
+    }
+  });
+}
+
+export async function loadStore() {
+  if (isInitialized) return;
+
+  if (isPg && pgPool) {
+    try {
+      // Create table if it doesn't exist
+      await pgPool.query(`
+        CREATE TABLE IF NOT EXISTS datastore (
+          id INT PRIMARY KEY,
+          data JSONB NOT NULL,
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+
+      const result = await pgPool.query(`SELECT data FROM datastore WHERE id = 1`);
+      if (result.rows.length > 0) {
+        store = result.rows[0].data;
+        console.log("[Database] Loaded state from PostgreSQL database");
+        isInitialized = true;
+        return;
+      }
+      console.log("[Database] No existing data found in PostgreSQL, seeding initial data");
+      store = { ...defaultInitialStore };
+      await saveStore();
+      isInitialized = true;
+      return;
+    } catch (err) {
+      console.error("[Database] Failed to load datastore from PostgreSQL, falling back to local file:", err);
+    }
+  }
+
+  // Local file fallback
   try {
     const dir = path.dirname(STORE_FILE);
     if (!fs.existsSync(dir)) {
@@ -114,98 +228,71 @@ function loadStore() {
     if (fs.existsSync(STORE_FILE)) {
       const content = fs.readFileSync(STORE_FILE, "utf-8");
       store = JSON.parse(content);
+      console.log("[Database] Loaded state from local data-store.json");
     } else {
-      // Seed initial data
-      store = {
-        users: {
-          "demo-user": {
-            id: "demo-user",
-            username: "shabab",
-            balance: 50,
-            freeAttemptsUsed: {},
-            createdAt: new Date().toISOString(),
-          },
-        },
-        apis: {
-          "hn-scraper": {
-            id: "hn-scraper",
-            ownerId: "demo-user",
-            ownerName: "shabab",
-            name: "Hacker News Scraper",
-            description: "Automatically extracts top stories, headlines, and score links from Hacker News in real time.",
-            isPrivate: false,
-            pricePerCall: 2,
-            steps: [
-              {
-                id: "step-1",
-                action: "navigate",
-                url: "https://news.ycombinator.com",
-                description: "Navigate to Hacker News",
-              },
-              {
-                id: "step-2",
-                action: "scrape",
-                selector: ".titleline",
-                description: "Scrape article titles and URLs",
-              },
-            ],
-            clarifications: {
-              explanation: "This API extracts the front-page articles from Hacker News, outputting their titles and corresponding URLs as a clean list.",
-              questions: [
-                "Should this API allow limiting the number of scraped stories via a query parameter?",
-                "Would you like to include story scores (points) in the scrape target?"
-              ],
-              dynamicParameters: [
-                {
-                  name: "limit",
-                  type: "number",
-                  description: "Maximum stories to return (default 10)",
-                  defaultValue: "10"
-                }
-              ]
-            },
-            callsCount: 14,
-            revenueEarned: 28,
-            createdAt: new Date().toISOString(),
-          },
-        },
-        transactions: [
-          {
-            id: "tx-1",
-            userId: "demo-user",
-            username: "shabab",
-            amount: 50,
-            trxId: "BK91A0Z8X",
-            senderNumber: "01711750169",
-            status: "approved",
-            createdAt: new Date().toISOString(),
-          }
-        ],
-        logs: []
-      };
-      saveStore();
+      store = { ...defaultInitialStore };
+      fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2), "utf-8");
+      console.log("[Database] Created and seeded local data-store.json");
     }
+    isInitialized = true;
   } catch (error) {
-    console.error("Failed to load datastore, starting fresh:", error);
+    console.error("[Database] Failed to load local datastore, starting fresh:", error);
   }
 }
 
-export function saveStore() {
-  try {
-    const dir = path.dirname(STORE_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+let isSaving = false;
+let needsSave = false;
+
+export async function saveStore() {
+  if (!isPg) {
+    try {
+      const dir = path.dirname(STORE_FILE);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2), "utf-8");
+    } catch (err) {
+      console.error("[Database] Failed to save local data-store:", err);
     }
-    fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2), "utf-8");
+    return;
+  }
+
+  // PostgreSQL saving in background queue
+  needsSave = true;
+  triggerPgSave();
+}
+
+async function triggerPgSave() {
+  if (isSaving || !pgPool) return;
+  isSaving = true;
+  needsSave = false;
+
+  try {
+    const dataJson = JSON.stringify(store);
+    await pgPool.query(
+      `INSERT INTO datastore (id, data) VALUES (1, $1)
+       ON CONFLICT (id) DO UPDATE SET data = $1, updated_at = NOW()`,
+      [dataJson]
+    );
   } catch (err) {
-    console.error("Failed to save data-store:", err);
+    console.error("[Database] Failed to save state to PostgreSQL:", err);
+  } finally {
+    isSaving = false;
+    if (needsSave) {
+      triggerPgSave();
+    }
   }
 }
 
-// Initialize the store
-loadStore();
+// Synchronous initialization fallback (only for local JSON file mode)
+if (!isPg) {
+  loadStore();
+}
 
 export const dbStore = {
+  initialize: async () => {
+    await loadStore();
+  },
   getUsers: () => store.users,
   getUser: (id: string) => store.users[id],
   getUserByName: (username: string) => Object.values(store.users).find(u => u.username.toLowerCase() === username.toLowerCase()),

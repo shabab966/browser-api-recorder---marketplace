@@ -63,7 +63,7 @@ outlineStyle.innerHTML = \`
     animation: recorderOutlineFlash 0.8s ease-out !important;
   }
 \`;
-document.head.appendChild(outlineStyle);
+(document.head || document.documentElement).appendChild(outlineStyle);
 
 function triggerFlash(element) {
   if (!element) return;
