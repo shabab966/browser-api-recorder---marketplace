@@ -434,11 +434,11 @@ updateUI();`
 
   const handleDownloadZip = () => {
     const bundleText = `// Browser API Recorder Pro Extension Source Bundle\n\n` +
-      `--- [manifest.json] ---\n\${extensionFiles.manifest}\n\n` +
-      `--- [background.js] ---\n\${extensionFiles.background}\n\n` +
-      `--- [content.js] ---\n\n\${extensionFiles.content}\n\n` +
-      `--- [popup.html] ---\n\${extensionFiles.popup}\n\n` +
-      `--- [popup.js] ---\n\${extensionFiles.popupJs}`;
+      `--- [manifest.json] ---\n${extensionFiles.manifest}\n\n` +
+      `--- [background.js] ---\n${extensionFiles.background}\n\n` +
+      `--- [content.js] ---\n\n${extensionFiles.content}\n\n` +
+      `--- [popup.html] ---\n${extensionFiles.popup}\n\n` +
+      `--- [popup.js] ---\n${extensionFiles.popupJs}`;
 
     const blob = new Blob([bundleText], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
