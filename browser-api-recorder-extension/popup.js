@@ -12,7 +12,7 @@ let recordedSteps = [];
 
 async function detectMarketplace() {
   const allTabs = await chrome.tabs.query({});
-  const marketplaceTab = allTabs.find(tab => tab.url && (tab.url.includes("localhost:3000") || tab.url.includes("127.0.0.1:3000")));
+  const marketplaceTab = allTabs.find(tab => tab.url && (tab.url.includes("localhost:3000") || tab.url.includes("127.0.0.1:3000") || tab.url.includes("onrender.com") || (tab.title && tab.title.includes("My Google AI Studio App"))));
   if (marketplaceTab) {
     connectionBadge.textContent = "Connected";
     connectionBadge.className = "status-badge status-connected";
@@ -114,7 +114,7 @@ syncBtn.addEventListener("click", async () => {
     }
 
     const allTabs = await chrome.tabs.query({});
-    const marketplaceTab = allTabs.find(tab => tab.url && (tab.url.includes("localhost:3000") || tab.url.includes("127.0.0.1:3000")));
+    const marketplaceTab = allTabs.find(tab => tab.url && (tab.url.includes("localhost:3000") || tab.url.includes("127.0.0.1:3000") || tab.url.includes("onrender.com") || (tab.title && tab.title.includes("My Google AI Studio App"))));
     
     if (marketplaceTab) {
       chrome.scripting.executeScript({
