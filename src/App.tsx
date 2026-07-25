@@ -646,7 +646,8 @@ async function runScraper() {
         setSelectedApi(data.api);
         // Initialize play inputs
         const initialParams: Record<string, string> = {};
-        data.api.clarifications.dynamicParameters.forEach((p: any) => {
+        const paramsList = data.api.clarifications?.dynamicParameters || [];
+        paramsList.forEach((p: any) => {
           initialParams[p.name] = p.defaultValue;
         });
         setPlaygroundParams(initialParams);
@@ -1529,7 +1530,8 @@ async function runScraper() {
                             setApiRunError(null);
                             // Initialize inputs
                             const initialParams: Record<string, string> = {};
-                            api.clarifications.dynamicParameters.forEach((p: any) => {
+                            const paramsList = api.clarifications?.dynamicParameters || [];
+                            paramsList.forEach((p: any) => {
                               initialParams[p.name] = p.defaultValue;
                             });
                             setPlaygroundParams(initialParams);

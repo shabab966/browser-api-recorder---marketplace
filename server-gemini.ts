@@ -51,12 +51,16 @@ async function queryLLM(prompt: string, expectJson: boolean = false, jsonSchema?
   if (isGroqActive) {
     try {
       const groq = getGroq();
+      let finalPrompt = prompt;
+      if (expectJson && jsonSchema) {
+        finalPrompt += `\n\nCRITICAL REQUIRED FORMAT: You MUST return a JSON object conforming exactly to this JSON schema properties structure: ${JSON.stringify(jsonSchema)}\nMake sure all required fields are present with correct keys and formats.`;
+      }
       const response = await groq.chat.completions.create({
         model: "llama-3.3-70b-versatile",
         messages: [
           {
             role: "user",
-            content: prompt
+            content: finalPrompt
           }
         ],
         temperature: 0.1,
