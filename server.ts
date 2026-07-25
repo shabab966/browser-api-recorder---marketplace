@@ -235,6 +235,19 @@ async function startServer() {
     return res.json({ message: "API successfully removed from the marketplace!" });
   });
 
+  // Admin: Get all registered users
+  app.get("/api/admin/users", requireAdmin, (req, res) => {
+    try {
+      const users = Object.values(dbStore.getUsers()).map(u => {
+        const { passwordHash, ...safeUser } = u;
+        return safeUser;
+      });
+      return res.json(users);
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message || "Failed to retrieve users" });
+    }
+  });
+
   // Recorder: LLM Clarify
   app.post("/api/recorder/clarify", async (req, res) => {
     const { steps } = req.body;
