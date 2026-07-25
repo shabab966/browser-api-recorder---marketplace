@@ -1,7 +1,11 @@
 import { GoogleGenAI, Type } from "@google/genai";
+import Groq from "groq-sdk";
 
-// Initialize the Google GenAI client as per system guidelines
-// Note: process.env.GEMINI_API_KEY is automatically injected by the environment
+// Detect active LLM providers
+const isGroq = !!process.env.GROQ_API_KEY;
+console.log(`[LLM Service] Active provider detected: ${isGroq ? "Groq (Llama 3.3)" : "Google Gemini"}`);
+
+// Initialize Google GenAI client
 let aiInstance: GoogleGenAI | null = null;
 function getAI() {
   if (!aiInstance) {
@@ -17,13 +21,61 @@ function getAI() {
   return aiInstance;
 }
 
-interface BrowserStep {
+// Initialize Groq client
+let groqInstance: Groq | null = null;
+function getGroq() {
+  if (!groqInstance) {
+    groqInstance = new Groq({
+      apiKey: process.env.GROQ_API_KEY || "",
+    });
+  }
+  return groqInstance;
+}
+
+export interface BrowserStep {
   id: string;
   action: "navigate" | "click" | "input" | "scrape";
   url?: string;
   selector?: string;
   value?: string;
+  label?: string;
   description: string;
+}
+
+// Abstracted LLM wrapper supporting both JSON mode and text prompts
+async function queryLLM(prompt: string, expectJson: boolean = false, jsonSchema?: any): Promise<string> {
+  if (isGroq) {
+    try {
+      const groq = getGroq();
+      const response = await groq.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.1,
+        ...(expectJson ? { response_format: { type: "json_object" } } : {})
+      });
+      return response.choices[0]?.message?.content || "";
+    } catch (e) {
+      console.error("[LLM Service] Groq request failed, falling back to Gemini:", e);
+    }
+  }
+
+  // Fallback to Gemini
+  const response = await getAI().models.generateContent({
+    model: "gemini-flash-latest",
+    contents: prompt,
+    ...(expectJson ? {
+      config: {
+        responseMimeType: "application/json",
+        ...(jsonSchema ? { responseSchema: jsonSchema } : {})
+      }
+    } : {})
+  });
+  return response.text || "";
 }
 
 export async function clarifyRecordedApi(steps: BrowserStep[]) {
@@ -41,50 +93,40 @@ ${JSON.stringify(steps, null, 2)}
 Provide a structured JSON output with the exact schema. Do not output anything else.
 `;
 
-    const response = await getAI().models.generateContent({
-      model: "gemini-flash-latest",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          required: ["explanation", "questions", "dynamicParameters"],
-          properties: {
-            explanation: {
-              type: Type.STRING,
-              description: "A professional and simple summary of what the recorded steps do.",
-            },
-            questions: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: "2 to 3 clarifying questions or tips.",
-            },
-            dynamicParameters: {
-              type: Type.ARRAY,
-              description: "Recommended URL query parameters to make the API dynamic.",
-              items: {
-                type: Type.OBJECT,
-                required: ["name", "type", "description", "defaultValue"],
-                properties: {
-                  name: { type: Type.STRING, description: "The query parameter name (e.g., 'search', 'limit')" },
-                  type: { type: Type.STRING, description: "Parameter type ('string', 'number', 'boolean')" },
-                  description: { type: Type.STRING, description: "Brief explanation of what this parameter controls." },
-                  defaultValue: { type: Type.STRING, description: "A logical default value as a string." },
-                },
-              },
+    const schema = {
+      type: Type.OBJECT,
+      required: ["explanation", "questions", "dynamicParameters"],
+      properties: {
+        explanation: {
+          type: Type.STRING,
+          description: "A professional and simple summary of what the recorded steps do.",
+        },
+        questions: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
+          description: "2 to 3 clarifying questions or tips.",
+        },
+        dynamicParameters: {
+          type: Type.ARRAY,
+          description: "Recommended URL query parameters to make the API dynamic.",
+          items: {
+            type: Type.OBJECT,
+            required: ["name", "type", "description", "defaultValue"],
+            properties: {
+              name: { type: Type.STRING, description: "The query parameter name (e.g., 'search', 'limit')" },
+              type: { type: Type.STRING, description: "Parameter type ('string', 'number', 'boolean')" },
+              description: { type: Type.STRING, description: "Brief explanation of what this parameter controls." },
+              defaultValue: { type: Type.STRING, description: "A logical default value as a string." },
             },
           },
         },
       },
-    });
+    };
 
-    if (!response.text) {
-      throw new Error("No text response from Gemini API");
-    }
-
-    return JSON.parse(response.text.trim());
+    const text = await queryLLM(prompt, true, schema);
+    return JSON.parse(text.trim());
   } catch (error) {
-    console.error("Gemini API clarification error:", error);
+    console.error("LLM clarification error, starting fallback:", error);
     
     let detectedDomain = "Web Scraper";
     let detectedParam = "search";
@@ -220,22 +262,10 @@ ${JSON.stringify(params, null, 2)}
 Do not add any explanations or comments, only return the raw JSON object/array.
 `;
 
-    const response = await getAI().models.generateContent({
-      model: "gemini-flash-latest",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-      },
-    });
-
-    if (!response.text) {
-      throw new Error("No text response from Gemini API");
-    }
-
-    return JSON.parse(response.text.trim());
+    const text = await queryLLM(prompt, true);
+    return JSON.parse(text.trim());
   } catch (error) {
-    console.error("Gemini API simulator error:", error);
-    // Generic high fidelity mock data
+    console.error("LLM simulator error, using backup mock data:", error);
     return {
       status: "success",
       source: steps.find(s => s.action === "navigate")?.url || "https://example.com",
@@ -261,29 +291,67 @@ ${JSON.stringify(scrapeResult)}
 Does the output satisfy the user's rule? Answer strictly in JSON format with a boolean "conditionMet".
 `;
 
-    const response = await getAI().models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          required: ["conditionMet"],
-          properties: {
-            conditionMet: {
-              type: Type.BOOLEAN,
-              description: "True if the rule is satisfied, false otherwise."
-            }
-          }
-        }
-      }
-    });
-
-    if (!response.text) return false;
-    const parsed = JSON.parse(response.text.trim());
+    const text = await queryLLM(prompt, true);
+    const parsed = JSON.parse(text.trim());
     return !!parsed.conditionMet;
   } catch (err) {
-    console.error("Gemini rule evaluation error:", err);
+    console.error("LLM rule evaluation error:", err);
     return false;
+  }
+}
+
+export async function generateStepsWithLLM(url: string, pageTitle: string, htmlStructure: string, goal: string): Promise<BrowserStep[]> {
+  const prompt = `
+You are an expert web scraping agent.
+Your task is to write a sequence of Puppeteer browser automation steps to achieve the user's scraping goal.
+
+Goal: "${goal}"
+Page Title: "${pageTitle}"
+URL: "${url}"
+
+Here is a simplified sample of the HTML structure of the target page:
+\`\`\`html
+${htmlStructure}
+\`\`\`
+
+Analyze the structure, find the correct container element, CSS selectors, and child elements.
+Then, generate a list of BrowserStep objects that can be executed to achieve the goal.
+For each step, specify:
+- id: A random unique string (e.g. "step-123")
+- action: "navigate", "click", "input", or "scrape"
+- url: (only for "navigate" step)
+- selector: (for "click", "input", and "scrape" steps). Make sure to use high-quality, unique selectors based on the classes or ids in the HTML structure.
+- value: (only for "input" step, the value to write)
+- label: (only for "scrape" step, a clean JSON key name to map the output, like "article_title", "price", "link")
+- description: A clear explanation of what this step does (e.g. 'Navigate to Hacker News', 'Scrape article titles under container')
+
+Rules:
+1. The first step MUST be a "navigate" action to the target URL.
+2. The final step should be the "scrape" action to retrieve the data.
+3. Keep the step count minimal (usually 2 or 3 steps is enough: navigate -> click filter/search if needed -> scrape).
+
+Return the output strictly as a JSON list of BrowserStep objects. Do not include markdown code block characters or any explanation. Only the JSON list.
+`;
+
+  try {
+    const text = await queryLLM(prompt, true);
+    return JSON.parse(text.trim());
+  } catch (error) {
+    console.error("[LLM] Failed to auto-generate steps:", error);
+    // Return standard fallback navigation and body scrape
+    return [
+      {
+        id: "step-nav",
+        action: "navigate",
+        url: url,
+        description: `Navigate to ${url}`
+      },
+      {
+        id: "step-scrape",
+        action: "scrape",
+        selector: "body",
+        description: "Scrape page body text"
+      }
+    ];
   }
 }

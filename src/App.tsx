@@ -136,6 +136,53 @@ export default function App() {
   const [clarifyLoading, setClarifyLoading] = useState(false);
   const [clarificationResult, setClarificationResult] = useState<any | null>(null);
 
+  // AI Cloud Agent states
+  const [sandboxMode, setSandboxMode] = useState<"interactive" | "ai-agent">("interactive");
+  const [aiUrl, setAiUrl] = useState("https://quotes.toscrape.com");
+  const [aiGoal, setAiGoal] = useState("Extract quotes, author names, and tags.");
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const handleAiGenerate = async () => {
+    if (!aiUrl.trim() || !aiGoal.trim()) {
+      setAiError("Please fill out both target URL and extraction goal.");
+      return;
+    }
+    setAiGenerating(true);
+    setAiError(null);
+    try {
+      const res = await fetch("/api/recorder/ai-generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: aiUrl.trim(), goal: aiGoal.trim() })
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to generate scraper.");
+      }
+      const data = await res.json();
+      setRecordedSteps(data.steps);
+      
+      // Auto-trigger LLM clarification to build dynamic fields
+      setClarifyLoading(true);
+      const clarifyRes = await fetch("/api/recorder/clarify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ steps: data.steps })
+      });
+      if (clarifyRes.ok) {
+        const clarifyData = await clarifyRes.json();
+        setClarificationResult(clarifyData);
+      }
+      setClarifyLoading(false);
+    } catch (err: any) {
+      console.error("AI Generation error:", err);
+      setAiError(err.message || "Failed to parse website structure.");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
   // Saved API details in Modal before submitting
   const [apiName, setApiName] = useState("");
   const [apiDesc, setApiDesc] = useState("");
@@ -865,12 +912,101 @@ async function runScraper() {
                 </div>
               </div>
 
-              {/* Simulated Embedded Browser Component */}
-              <MockBrowser 
-                isRecording={isRecording} 
-                onRecordStep={handleRecordStep}
-                recordedSteps={recordedSteps} 
-              />
+              {/* Sandbox mode switcher */}
+              <div className="flex bg-slate-950 border border-slate-800 p-1 rounded-xl max-w-sm mb-4">
+                <button
+                  type="button"
+                  onClick={() => setSandboxMode("interactive")}
+                  className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg cursor-pointer transition-all ${
+                    sandboxMode === "interactive" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  Interactive Emulator
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSandboxMode("ai-agent")}
+                  className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg cursor-pointer transition-all flex items-center justify-center gap-1.5 ${
+                    sandboxMode === "ai-agent" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>AI Cloud Agent</span>
+                </button>
+              </div>
+
+              {sandboxMode === "interactive" ? (
+                <MockBrowser 
+                  isRecording={isRecording} 
+                  onRecordStep={handleRecordStep}
+                  recordedSteps={recordedSteps} 
+                />
+              ) : (
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                  <div className="flex justify-between items-center pb-3 border-b border-slate-800/80">
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-indigo-400" />
+                        AI Cloud Scraper Agent
+                      </h3>
+                      <p className="text-slate-400 text-3xs mt-0.5">Scrape any live site without downloading extensions</p>
+                    </div>
+                    <span className="text-3xs text-emerald-400 font-semibold font-mono bg-emerald-950/40 border border-emerald-900/60 px-2 py-0.5 rounded">
+                      Zero-Extension Mode
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-2xs font-bold text-slate-300 uppercase tracking-wider mb-1">Target Website URL</label>
+                      <input
+                        type="url"
+                        placeholder="https://news.ycombinator.com"
+                        value={aiUrl}
+                        onChange={(e) => setAiUrl(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none transition-all font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-2xs font-bold text-slate-300 uppercase tracking-wider mb-1">What do you want to extract?</label>
+                      <textarea
+                        rows={3}
+                        placeholder="Extract all stories, links, and points..."
+                        value={aiGoal}
+                        onChange={(e) => setAiGoal(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none transition-all leading-relaxed"
+                      />
+                    </div>
+
+                    {aiError && (
+                      <div className="p-3 bg-rose-950/30 border border-rose-900/50 rounded-xl flex items-start gap-2 text-rose-400 text-2xs leading-relaxed">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <span>{aiError}</span>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleAiGenerate}
+                      disabled={aiGenerating}
+                      className="w-full py-3 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20 disabled:opacity-50"
+                    >
+                      {aiGenerating ? (
+                        <>
+                          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                          <span>AI is parsing site layout & writing selectors...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4 text-white" />
+                          <span>Generate & Clarify Scraper API</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="mt-6">
                 <ChromeExtensionCard />
               </div>

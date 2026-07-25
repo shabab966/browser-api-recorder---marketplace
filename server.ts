@@ -6,8 +6,9 @@ import cors from "cors";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { dbStore, rateLimits } from "./server-state.js";
-import { simulateApiExecution, clarifyRecordedApi } from "./server-gemini.js";
+import { simulateApiExecution, clarifyRecordedApi, generateStepsWithLLM } from "./server-gemini.js";
 import { executePuppeteerSteps } from "./server-puppeteer.js";
+import puppeteer from "puppeteer-extra";
 import { engine, startSchedulerEngine } from "./server-scheduler.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -246,6 +247,71 @@ async function startServer() {
       return res.json(clarification);
     } catch (err: any) {
       return res.status(500).json({ error: err.message || "Failed to clarify with LLM" });
+    }
+  });
+
+  // Recorder: AI Generate Scraper (No Extension Required)
+  app.post("/api/recorder/ai-generate", async (req, res) => {
+    const { url, goal } = req.body;
+    if (!url || !goal) {
+      return res.status(400).json({ error: "Missing required fields: url or goal." });
+    }
+
+    let browser: any = null;
+    try {
+      console.log(`[AI Scraper Generator] Launching headless browser to parse: ${url}`);
+      browser = await puppeteer.launch({
+        headless: "shell",
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-web-security"
+        ]
+      });
+
+      const page = await browser.newPage();
+      await page.setViewport({ width: 1280, height: 800 });
+      await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
+      
+      await page.goto(url, { waitUntil: "networkidle2", timeout: 20000 });
+
+      // Extract simplified DOM layout
+      const domData = await page.evaluate(() => {
+        const cleanBody = document.body.cloneNode(true) as HTMLElement;
+        const removeTags = ["script", "style", "svg", "noscript", "iframe", "path", "img", "header", "footer"];
+        removeTags.forEach(tag => {
+          cleanBody.querySelectorAll(tag).forEach(el => el.remove());
+        });
+
+        // Query key elements that denote containers or data records
+        const elements = Array.from(cleanBody.querySelectorAll("a, span, p, h1, h2, h3, h4, li, tr, td, .titleline, .title, .price, .product"));
+        const structure = elements.slice(0, 100).map(el => {
+          const classStr = el.className ? ` class="${el.className}"` : "";
+          const idStr = el.id ? ` id="${el.id}"` : "";
+          const text = (el.textContent || "").trim().substring(0, 50);
+          return `<${el.tagName.toLowerCase()}${idStr}${classStr}>${text}</${el.tagName.toLowerCase()}>`;
+        }).join("\n");
+
+        return {
+          title: document.title,
+          htmlStructure: structure
+        };
+      });
+
+      await browser.close();
+      browser = null;
+
+      console.log(`[AI Scraper Generator] DOM parsed. Title: "${domData.title}". Generating steps with LLM...`);
+      const steps = await generateStepsWithLLM(url, domData.title, domData.htmlStructure, goal);
+      console.log(`[AI Scraper Generator] Successfully generated ${steps.length} scraping steps.`);
+      
+      return res.json({ steps });
+    } catch (err: any) {
+      console.error("[AI Scraper Generator] Failed:", err);
+      if (browser) {
+        try { await browser.close(); } catch (_) {}
+      }
+      return res.status(500).json({ error: err.message || "Failed to parse target site structure." });
     }
   });
 
