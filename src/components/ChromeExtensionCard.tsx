@@ -552,8 +552,8 @@ updateUI();`
 
   const getFileSize = (content: string) => {
     const bytes = new Blob([content]).size;
-    if (bytes < 1024) return \`\${bytes} B\`;
-    return \`\${(bytes / 1024).toFixed(1)} KB\`;
+    if (bytes < 1024) return `${bytes} B`;
+    return `${(bytes / 1024).toFixed(1)} KB`;
   };
 
   const files = [
@@ -642,14 +642,14 @@ updateUI();`
                 <button
                   key={file.name}
                   onClick={() => setActiveFile(file.name)}
-                  className={\`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-all group \${
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-all group ${
                     activeFile === file.name
                       ? "bg-indigo-500/10 border border-indigo-500/20 text-slate-100"
                       : "border border-transparent text-slate-400 hover:bg-slate-900/60 hover:text-slate-200"
-                  }\`}
+                  }`}
                 >
                   <div className="flex items-center gap-2">
-                    <FileIcon className={\`w-4 h-4 shrink-0 \${file.color} group-hover:scale-110 transition-transform\`} />
+                    <FileIcon className={`w-4 h-4 shrink-0 ${file.color} group-hover:scale-110 transition-transform`} />
                     <span className="text-xs font-medium font-mono truncate">{file.name}</span>
                   </div>
                   <span className="text-3xs font-mono text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
