@@ -7,7 +7,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { dbStore, rateLimits } from "./server-state.js";
 import { simulateApiExecution, clarifyRecordedApi } from "./server-gemini.js";
-import { executeBrowserActions } from "./server-puppeteer.js";
+import { executePuppeteerSteps } from "./server-puppeteer.js";
 import { engine, startSchedulerEngine } from "./server-scheduler.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";

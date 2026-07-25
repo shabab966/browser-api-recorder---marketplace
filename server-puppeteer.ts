@@ -73,6 +73,7 @@ export async function executePuppeteerSteps(
     if (resolved.url) resolved.url = replaceText(resolved.url);
     if (resolved.selector) resolved.selector = replaceText(resolved.selector);
     if (resolved.value) resolved.value = replaceText(resolved.value);
+    if (resolved.description) resolved.description = replaceText(resolved.description);
 
     return resolved;
   });
@@ -347,7 +348,7 @@ export async function executePuppeteerSteps(
                 console.log(`[Puppeteer] Self-healing: Searching for <${targetTag}> containing "${targetText}"`);
                 healed = await page.evaluate((tag, text) => {
                   const elements = Array.from(document.querySelectorAll(tag));
-                  const match = elements.find(el => (el.textContent || "").trim().includes(text));
+                  const match = elements.find(el => (el.textContent || "").trim().toLowerCase().includes(text.toLowerCase()));
                   if (match) {
                     (match as HTMLElement).click();
                     return true;

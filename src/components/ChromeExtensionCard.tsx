@@ -1,8 +1,10 @@
 import React, { useState } from "react";
-import { Download, Copy, Check, Chrome, HardDriveUpload, Code, Puzzle, Sparkles } from "lucide-react";
+import { Download, Copy, Check, Code, Puzzle, Sparkles, FileCode, Terminal, FileJson, Layout } from "lucide-react";
+import JSZip from "jszip";
 
 export default function ChromeExtensionCard() {
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
+  const [activeFile, setActiveFile] = useState<string>("manifest.json");
 
   const extensionFiles = {
     manifest: `{
@@ -50,6 +52,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     content: `// Listen for user clicks and input on the active web page
 let isRecording = false;
 
+// Inject visual recording outline flash styles
+const outlineStyle = document.createElement("style");
+outlineStyle.innerHTML = \`
+  @keyframes recorderOutlineFlash {
+    0% { outline: 3px solid rgba(99, 102, 241, 0.9); outline-offset: 2px; box-shadow: 0 0 10px rgba(99, 102, 241, 0.8); }
+    100% { outline: 3px solid transparent; outline-offset: 10px; box-shadow: 0 0 0 transparent; }
+  }
+  .recorder-glowing-flash {
+    animation: recorderOutlineFlash 0.8s ease-out !important;
+  }
+\`;
+document.head.appendChild(outlineStyle);
+
+function triggerFlash(element) {
+  if (!element) return;
+  element.classList.add("recorder-glowing-flash");
+  setTimeout(() => {
+    element.classList.remove("recorder-glowing-flash");
+  }, 800);
+}
+
 // Sync state on load
 chrome.storage.local.get({ isRecording: false }, (data) => {
   isRecording = data.isRecording;
@@ -65,10 +88,54 @@ chrome.storage.onChanged.addListener((changes) => {
 // Helper to compute a CSS selector for an element
 function getCssSelector(el) {
   if (!(el instanceof Element)) return "";
+  
+  // 1. Try data-testid or data-qa
+  const testId = el.getAttribute("data-testid") || el.getAttribute("data-qa");
+  if (testId) return \`*[data-testid="\${testId}"]\`;
+  
+  // 2. Try unique ID if it doesn't look auto-generated
+  if (el.id && !el.id.includes(":") && !el.id.match(/^[0-9]/) && el.id.length < 50) {
+    try {
+      if (document.querySelectorAll("#" + CSS.escape(el.id)).length === 1) {
+        return "#" + el.id;
+      }
+    } catch(e) {}
+  }
+  
+  // 3. Try name attribute for inputs
+  const name = el.getAttribute("name");
+  if (name && ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName)) {
+    return \`\${el.tagName.toLowerCase()}[name="\${name}"]\`;
+  }
+  
+  // 4. Try placeholder for inputs
+  const placeholder = el.getAttribute("placeholder");
+  if (placeholder && el.tagName === "INPUT") {
+    return \`input[placeholder="\${placeholder}"]\`;
+  }
+  
+  // 5. Try aria-label
+  const ariaLabel = el.getAttribute("aria-label");
+  if (ariaLabel) {
+    return \`*[aria-label="\${ariaLabel}"]\`;
+  }
+
+  // 6. Structural path fallback
   const path = [];
   while (el && el.nodeType === Node.ELEMENT_NODE) {
     let selector = el.nodeName.toLowerCase();
-    if (el.id) {
+    
+    // Ignore random classes (alphanumeric hashes of length 8-12)
+    if (el.className && typeof el.className === "string") {
+      const classes = el.className.split(/\\s+/).filter(c => {
+        return c && !c.match(/^[a-z0-9]{8,12}$/i) && !c.startsWith("recorder-");
+      });
+      if (classes.length > 0) {
+        selector += "." + classes.join(".");
+      }
+    }
+    
+    if (el.id && !el.id.includes(":") && el.id.length < 50) {
       selector += '#' + el.id;
       path.unshift(selector);
       break;
@@ -96,6 +163,7 @@ document.addEventListener("click", (event) => {
   const element = event.target;
   if (element.closest("#chrome-extension-guide")) return;
   
+  triggerFlash(element);
   const selector = getCssSelector(element);
   const tagName = element.tagName.toLowerCase();
   const textContent = element.textContent ? element.textContent.trim().substring(0, 30) : "";
@@ -117,6 +185,7 @@ document.addEventListener("change", (event) => {
   
   const element = event.target;
   if (element.tagName === "INPUT" || element.tagName === "TEXTAREA" || element.tagName === "SELECT") {
+    triggerFlash(element);
     const selector = getCssSelector(element);
     const nameOrPlaceholder = element.getAttribute("placeholder") || element.getAttribute("name") || element.tagName.toLowerCase();
     const val = element.value;
@@ -160,7 +229,7 @@ document.addEventListener("change", (event) => {
       margin-bottom: 12px;
       font-size: 12px;
       display: flex;
-      justify-between: space-between;
+      justify-content: space-between;
       align-items: center;
     }
     .status-badge {
@@ -172,6 +241,7 @@ document.addEventListener("change", (event) => {
     }
     .status-idle { background: #475569; color: #f8fafc; }
     .status-recording { background: #ef4444; color: white; animation: pulse 1.5s infinite; }
+    .status-connected { background: #10b981; color: white; }
     @keyframes pulse {
       0% { opacity: 1; }
       50% { opacity: 0.5; }
@@ -192,12 +262,16 @@ document.addEventListener("change", (event) => {
       gap: 6px;
       transition: background 0.2s;
     }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
     .btn-rec { background: #ef4444; color: white; }
     .btn-rec:hover { background: #dc2626; }
     .btn-stop { background: #475569; color: white; }
     .btn-stop:hover { background: #334155; }
     .btn-sync { background: #10b981; color: white; }
-    .btn-sync:hover { background: #059669; }
+    .btn-sync:hover:not(:disabled) { background: #059669; }
     .btn-clear { background: #e2e8f0; color: #0f172a; }
     .btn-clear:hover { background: #cbd5e1; }
     
@@ -252,6 +326,10 @@ document.addEventListener("change", (event) => {
 <body>
   <h3>🔌 API Recorder Pro</h3>
   <div class="status-container">
+    <span>Workspace:</span>
+    <span id="connectionBadge" class="status-badge status-idle">Checking...</span>
+  </div>
+  <div class="status-container">
     <span>Status:</span>
     <span id="statusBadge" class="status-badge status-idle">Idle</span>
   </div>
@@ -269,6 +347,7 @@ document.addEventListener("change", (event) => {
 </body>
 </html>`,
     popupJs: `const statusBadge = document.getElementById("statusBadge");
+const connectionBadge = document.getElementById("connectionBadge");
 const recBtn = document.getElementById("recBtn");
 const syncBtn = document.getElementById("syncBtn");
 const clearBtn = document.getElementById("clearBtn");
@@ -278,6 +357,22 @@ const msgBox = document.getElementById("msgBox");
 
 let isRecording = false;
 let recordedSteps = [];
+
+async function detectMarketplace() {
+  const allTabs = await chrome.tabs.query({});
+  const marketplaceTab = allTabs.find(tab => tab.url && (tab.url.includes("localhost:3000") || tab.url.includes("127.0.0.1:3000")));
+  if (marketplaceTab) {
+    connectionBadge.textContent = "Connected";
+    connectionBadge.className = "status-badge status-connected";
+    connectionBadge.style.background = "#10b981";
+    syncBtn.disabled = recordedSteps.length === 0;
+  } else {
+    connectionBadge.textContent = "Offline";
+    connectionBadge.className = "status-badge status-idle";
+    connectionBadge.style.background = "#64748b";
+    syncBtn.disabled = true;
+  }
+}
 
 function updateUI() {
   chrome.storage.local.get({ isRecording: false, steps: [] }, (data) => {
@@ -303,7 +398,6 @@ function updateUI() {
       emptyDiv.className = "empty-steps";
       emptyDiv.textContent = "No steps recorded yet. Click Start Recording and click around a website.";
       stepsList.appendChild(emptyDiv);
-      syncBtn.disabled = true;
     } else {
       recordedSteps.forEach((step, index) => {
         const li = document.createElement("li");
@@ -311,8 +405,9 @@ function updateUI() {
         li.textContent = \`\${index + 1}. [\${step.action}] \${step.description}\`;
         stepsList.appendChild(li);
       });
-      syncBtn.disabled = false;
     }
+    
+    detectMarketplace();
   });
 }
 
@@ -432,23 +527,44 @@ updateUI();`
     setTimeout(() => setCopiedSection(null), 2000);
   };
 
-  const handleDownloadZip = () => {
-    const bundleText = `// Browser API Recorder Pro Extension Source Bundle\n\n` +
-      `--- [manifest.json] ---\n${extensionFiles.manifest}\n\n` +
-      `--- [background.js] ---\n${extensionFiles.background}\n\n` +
-      `--- [content.js] ---\n\n${extensionFiles.content}\n\n` +
-      `--- [popup.html] ---\n${extensionFiles.popup}\n\n` +
-      `--- [popup.js] ---\n${extensionFiles.popupJs}`;
+  const handleDownloadZip = async () => {
+    try {
+      const zip = new JSZip();
+      zip.file("manifest.json", extensionFiles.manifest);
+      zip.file("background.js", extensionFiles.background);
+      zip.file("content.js", extensionFiles.content);
+      zip.file("popup.html", extensionFiles.popup);
+      zip.file("popup.js", extensionFiles.popupJs);
 
-    const blob = new Blob([bundleText], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "browser_api_recorder_extension.txt";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+      const content = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(content);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "browser-api-recorder-extension.zip";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to generate ZIP", err);
+    }
   };
+
+  const getFileSize = (content: string) => {
+    const bytes = new Blob([content]).size;
+    if (bytes < 1024) return \`\${bytes} B\`;
+    return \`\${(bytes / 1024).toFixed(1)} KB\`;
+  };
+
+  const files = [
+    { name: "manifest.json", content: extensionFiles.manifest, icon: FileJson, color: "text-amber-400" },
+    { name: "background.js", content: extensionFiles.background, icon: Terminal, color: "text-sky-400" },
+    { name: "content.js", content: extensionFiles.content, icon: Code, color: "text-emerald-400" },
+    { name: "popup.html", content: extensionFiles.popup, icon: Layout, color: "text-rose-400" },
+    { name: "popup.js", content: extensionFiles.popupJs, icon: FileCode, color: "text-indigo-400" }
+  ];
+
+  const currentFile = files.find(f => f.name === activeFile) || files[0];
 
   return (
     <div id="chrome-extension-guide" className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
@@ -468,7 +584,7 @@ updateUI();`
           className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
         >
           <Download className="w-3.5 h-3.5" />
-          <span>Download Source Pack</span>
+          <span>Download Source Pack (.ZIP)</span>
         </button>
       </div>
 
@@ -479,8 +595,8 @@ updateUI();`
             <span className="w-5 h-5 bg-indigo-500/10 text-indigo-400 rounded-full flex items-center justify-center font-bold">1</span>
             <span className="font-semibold text-slate-200">Extract Files</span>
           </div>
-          <p className="text-slate-400 leading-relaxed font-sans">
-            Download our source pack and save the files (manifest.json, background.js, popup.html) into a single folder on your PC.
+          <p className="text-slate-400 leading-relaxed font-sans font-medium">
+            Download our source ZIP pack and extract all 5 extension files into a single directory on your PC.
           </p>
         </div>
 
@@ -489,7 +605,7 @@ updateUI();`
             <span className="w-5 h-5 bg-indigo-500/10 text-indigo-400 rounded-full flex items-center justify-center font-bold">2</span>
             <span className="font-semibold text-slate-200">Load Unpacked</span>
           </div>
-          <p className="text-slate-400 leading-relaxed font-sans">
+          <p className="text-slate-400 leading-relaxed font-sans font-medium">
             Open Chrome, navigate to <code className="text-indigo-400 font-mono">chrome://extensions</code>, and toggle <span className="font-semibold text-white">"Developer mode"</span> in the top-right.
           </p>
         </div>
@@ -499,54 +615,73 @@ updateUI();`
             <span className="w-5 h-5 bg-indigo-500/10 text-indigo-400 rounded-full flex items-center justify-center font-bold">3</span>
             <span className="font-semibold text-slate-200">Link Account</span>
           </div>
-          <p className="text-slate-400 leading-relaxed font-sans">
+          <p className="text-slate-400 leading-relaxed font-sans font-medium">
             Click <span className="font-semibold text-white">"Load unpacked"</span>, select your extension directory, and click the puzzle icon to record any website!
           </p>
         </div>
       </div>
 
-      {/* Code Previews */}
+      {/* Code Explorer */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 font-mono">Extension Source Code Blocks</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 font-mono">
+            Interactive Code Explorer
+          </span>
           <span className="text-2xs text-indigo-400 flex items-center gap-1 font-mono">
             <Sparkles className="w-3 h-3" />
             V3 Manifest Compliant
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* manifest.json */}
-          <div className="bg-slate-950 border border-slate-800/80 rounded-xl overflow-hidden flex flex-col h-[200px]">
-            <div className="bg-slate-900 px-4 py-2 border-b border-slate-800 flex justify-between items-center text-2xs font-mono">
-              <span className="text-slate-300">manifest.json</span>
-              <button
-                onClick={() => handleCopy("manifest", extensionFiles.manifest)}
-                className="text-slate-400 hover:text-white flex items-center gap-1 bg-transparent border-none cursor-pointer"
-              >
-                {copiedSection === "manifest" ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                <span>{copiedSection === "manifest" ? "Copied" : "Copy"}</span>
-              </button>
-            </div>
-            <pre className="p-3 text-2xs text-slate-400 font-mono overflow-auto flex-1 leading-relaxed">
-              {extensionFiles.manifest}
-            </pre>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-950/40 border border-slate-800/80 rounded-xl overflow-hidden p-2">
+          {/* Sidebar */}
+          <div className="md:col-span-1 flex flex-col gap-1 pr-2 border-b md:border-b-0 md:border-r border-slate-800/60 pb-3 md:pb-0">
+            {files.map((file) => {
+              const FileIcon = file.icon;
+              return (
+                <button
+                  key={file.name}
+                  onClick={() => setActiveFile(file.name)}
+                  className={\`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-all group \${
+                    activeFile === file.name
+                      ? "bg-indigo-500/10 border border-indigo-500/20 text-slate-100"
+                      : "border border-transparent text-slate-400 hover:bg-slate-900/60 hover:text-slate-200"
+                  }\`}
+                >
+                  <div className="flex items-center gap-2">
+                    <FileIcon className={\`w-4 h-4 shrink-0 \${file.color} group-hover:scale-110 transition-transform\`} />
+                    <span className="text-xs font-medium font-mono truncate">{file.name}</span>
+                  </div>
+                  <span className="text-3xs font-mono text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
+                    {getFileSize(file.content)}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
-          {/* background.js */}
-          <div className="bg-slate-950 border border-slate-800/80 rounded-xl overflow-hidden flex flex-col h-[200px]">
-            <div className="bg-slate-900 px-4 py-2 border-b border-slate-800 flex justify-between items-center text-2xs font-mono">
-              <span className="text-slate-300">background.js</span>
+          {/* Main Viewer */}
+          <div className="md:col-span-3 flex flex-col h-[400px]">
+            <div className="bg-slate-900/80 px-4 py-2 border border-slate-800 rounded-t-lg flex justify-between items-center text-2xs font-mono">
+              <div className="flex items-center gap-2">
+                <span className="text-slate-400">Previewing:</span>
+                <span className="text-slate-200 font-semibold">{currentFile.name}</span>
+                <span className="text-slate-500">({getFileSize(currentFile.content)})</span>
+              </div>
               <button
-                onClick={() => handleCopy("background", extensionFiles.background)}
-                className="text-slate-400 hover:text-white flex items-center gap-1 bg-transparent border-none cursor-pointer"
+                onClick={() => handleCopy(currentFile.name, currentFile.content)}
+                className="text-slate-400 hover:text-white flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded border border-slate-800 hover:border-slate-700 cursor-pointer transition-colors"
               >
-                {copiedSection === "background" ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                <span>{copiedSection === "background" ? "Copied" : "Copy"}</span>
+                {copiedSection === currentFile.name ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5" />
+                )}
+                <span>{copiedSection === currentFile.name ? "Copied!" : "Copy File"}</span>
               </button>
             </div>
-            <pre className="p-3 text-2xs text-slate-400 font-mono overflow-auto flex-1 leading-relaxed">
-              {extensionFiles.background}
+            <pre className="p-4 text-2xs text-slate-300 font-mono overflow-auto flex-1 leading-relaxed bg-slate-950 border border-t-0 border-slate-800 rounded-b-lg">
+              <code>{currentFile.content}</code>
             </pre>
           </div>
         </div>
