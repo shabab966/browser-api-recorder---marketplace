@@ -4,7 +4,6 @@ import JSZip from "jszip";
 
 export default function ChromeExtensionCard() {
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
-  const [activeFile, setActiveFile] = useState<string>("manifest.json");
 
   const extensionFiles = {
     manifest: `{
@@ -550,22 +549,6 @@ updateUI();`
     }
   };
 
-  const getFileSize = (content: string) => {
-    const bytes = new Blob([content]).size;
-    if (bytes < 1024) return `${bytes} B`;
-    return `${(bytes / 1024).toFixed(1)} KB`;
-  };
-
-  const files = [
-    { name: "manifest.json", content: extensionFiles.manifest, icon: FileJson, color: "text-amber-400" },
-    { name: "background.js", content: extensionFiles.background, icon: Terminal, color: "text-sky-400" },
-    { name: "content.js", content: extensionFiles.content, icon: Code, color: "text-emerald-400" },
-    { name: "popup.html", content: extensionFiles.popup, icon: Layout, color: "text-rose-400" },
-    { name: "popup.js", content: extensionFiles.popupJs, icon: FileCode, color: "text-indigo-400" }
-  ];
-
-  const currentFile = files.find(f => f.name === activeFile) || files[0];
-
   return (
     <div id="chrome-extension-guide" className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
       <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
@@ -618,72 +601,6 @@ updateUI();`
           <p className="text-slate-400 leading-relaxed font-sans font-medium">
             Click <span className="font-semibold text-white">"Load unpacked"</span>, select your extension directory, and click the puzzle icon to record any website!
           </p>
-        </div>
-      </div>
-
-      {/* Code Explorer */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 font-mono">
-            Interactive Code Explorer
-          </span>
-          <span className="text-2xs text-indigo-400 flex items-center gap-1 font-mono">
-            <Sparkles className="w-3 h-3" />
-            V3 Manifest Compliant
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-950/40 border border-slate-800/80 rounded-xl overflow-hidden p-2">
-          {/* Sidebar */}
-          <div className="md:col-span-1 flex flex-col gap-1 pr-2 border-b md:border-b-0 md:border-r border-slate-800/60 pb-3 md:pb-0">
-            {files.map((file) => {
-              const FileIcon = file.icon;
-              return (
-                <button
-                  key={file.name}
-                  onClick={() => setActiveFile(file.name)}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-all group ${
-                    activeFile === file.name
-                      ? "bg-indigo-500/10 border border-indigo-500/20 text-slate-100"
-                      : "border border-transparent text-slate-400 hover:bg-slate-900/60 hover:text-slate-200"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <FileIcon className={`w-4 h-4 shrink-0 ${file.color} group-hover:scale-110 transition-transform`} />
-                    <span className="text-xs font-medium font-mono truncate">{file.name}</span>
-                  </div>
-                  <span className="text-3xs font-mono text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
-                    {getFileSize(file.content)}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Main Viewer */}
-          <div className="md:col-span-3 flex flex-col h-[400px]">
-            <div className="bg-slate-900/80 px-4 py-2 border border-slate-800 rounded-t-lg flex justify-between items-center text-2xs font-mono">
-              <div className="flex items-center gap-2">
-                <span className="text-slate-400">Previewing:</span>
-                <span className="text-slate-200 font-semibold">{currentFile.name}</span>
-                <span className="text-slate-500">({getFileSize(currentFile.content)})</span>
-              </div>
-              <button
-                onClick={() => handleCopy(currentFile.name, currentFile.content)}
-                className="text-slate-400 hover:text-white flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded border border-slate-800 hover:border-slate-700 cursor-pointer transition-colors"
-              >
-                {copiedSection === currentFile.name ? (
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                ) : (
-                  <Copy className="w-3.5 h-3.5" />
-                )}
-                <span>{copiedSection === currentFile.name ? "Copied!" : "Copy File"}</span>
-              </button>
-            </div>
-            <pre className="p-4 text-2xs text-slate-300 font-mono overflow-auto flex-1 leading-relaxed bg-slate-950 border border-t-0 border-slate-800 rounded-b-lg">
-              <code>{currentFile.content}</code>
-            </pre>
-          </div>
         </div>
       </div>
     </div>
