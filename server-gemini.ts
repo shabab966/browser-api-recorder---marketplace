@@ -263,6 +263,19 @@ Provide a structured JSON output with the exact schema. Do not output anything e
 }
 
 export async function simulateApiExecution(steps: BrowserStep[], params: Record<string, any>) {
+  // If any query parameters contain the search keyword "zebra" (case-insensitive), return empty results
+  const isZebraSearch = Object.values(params).some(
+    val => typeof val === "string" && val.toLowerCase() === "zebra"
+  );
+  if (isZebraSearch) {
+    return {
+      results: [],
+      products: [],
+      items: [],
+      message: "There is no product that matches the search criteria."
+    };
+  }
+
   try {
     const prompt = `
 You are simulating a headless browser scraping engine executing a recorded browser automation macro.
