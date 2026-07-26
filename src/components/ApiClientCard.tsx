@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Send, Check, Copy, RefreshCw, Terminal, FileJson } from "lucide-react";
+import FriendlyResponseViewer from "./FriendlyResponseViewer.js";
 
 interface HeaderItem {
   key: string;
@@ -208,22 +209,11 @@ export default function ApiClientCard() {
                 )}
               </div>
 
-              {response && (
-                <button
-                  onClick={handleCopy}
-                  className="text-slate-400 hover:text-white flex items-center gap-1 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 cursor-pointer text-3xs transition-colors"
-                >
-                  {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                  <span>{copied ? "Copied" : "Copy"}</span>
-                </button>
-              )}
             </div>
 
-            <div className="flex-1 overflow-auto pr-1">
+            <div className="flex-1 overflow-hidden pr-1 flex flex-col">
               {response ? (
-                <pre className="text-3xs font-mono text-slate-300 leading-relaxed">
-                  <code>{JSON.stringify(response, null, 2)}</code>
-                </pre>
+                <FriendlyResponseViewer data={response} />
               ) : loading ? (
                 <div className="h-full flex flex-col items-center justify-center text-slate-500 gap-2 font-mono">
                   <RefreshCw className="w-5 h-5 animate-spin text-indigo-400" />

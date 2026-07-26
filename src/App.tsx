@@ -22,6 +22,7 @@ const apiFetch = async (url: string, options: any = {}) => {
 import MockBrowser from "./components/MockBrowser.js";
 import BkashPortal from "./components/BkashPortal.js";
 import ApiClientCard from "./components/ApiClientCard.js";
+import FriendlyResponseViewer from "./components/FriendlyResponseViewer.js";
 
 export interface ApiSchedule {
   id: string;
@@ -1407,9 +1408,7 @@ async function runScraper() {
                             Error: {apiRunError}
                           </pre>
                         ) : (
-                          <pre className="p-4 pb-8 text-2xs text-slate-300 font-mono whitespace-pre-wrap break-words overflow-y-auto max-h-[300px] leading-relaxed">
-                            {JSON.stringify(executionResult?.data, null, 2)}
-                          </pre>
+                          <FriendlyResponseViewer data={executionResult?.data} />
                         )}
                       </div>
                     )}
