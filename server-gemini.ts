@@ -263,9 +263,13 @@ Provide a structured JSON output with the exact schema. Do not output anything e
 }
 
 export async function simulateApiExecution(steps: BrowserStep[], params: Record<string, any>) {
-  // If any query parameters contain the search keyword "zebra" (case-insensitive), return empty results
+  // If any query parameters contain the search keyword "zebra" or "colorful fridge" (case-insensitive), return empty results
   const isZebraSearch = Object.values(params).some(
-    val => typeof val === "string" && val.toLowerCase() === "zebra"
+    val => typeof val === "string" && (
+      val.toLowerCase().includes("zebra") ||
+      val.toLowerCase().trim() === "colorful fridge" ||
+      val.toLowerCase().trim() === "colourful fridge"
+    )
   );
   if (isZebraSearch) {
     return {
