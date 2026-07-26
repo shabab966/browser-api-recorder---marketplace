@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Table, LayoutGrid, Code, Copy, Check } from "lucide-react";
+import { Table, LayoutGrid, Code, Copy, Check, ExternalLink } from "lucide-react";
 
 interface FriendlyResponseViewerProps {
   data: any;
@@ -8,11 +8,36 @@ interface FriendlyResponseViewerProps {
 export default function FriendlyResponseViewer({ data }: FriendlyResponseViewerProps) {
   const [viewMode, setViewMode] = useState<"raw" | "table" | "cards">("raw");
   const [copied, setCopied] = useState(false);
+  const [listData, setListData] = useState<any[] | null>(null);
 
-  // Auto-detect best default mode
+  // Helper to extract a nested list of objects
+  const extractList = (val: any): any[] | null => {
+    if (Array.isArray(val) && val.length > 0 && typeof val[0] === "object" && val[0] !== null) {
+      return val;
+    }
+    if (val && typeof val === "object") {
+      // Look for a key containing an array of objects
+      for (const k of Object.keys(val)) {
+        const item = val[k];
+        if (Array.isArray(item) && item.length > 0 && typeof item[0] === "object" && item[0] !== null) {
+          return item;
+        }
+      }
+      // If it contains any array at all
+      for (const k of Object.keys(val)) {
+        if (Array.isArray(val[k]) && val[k].length > 0) {
+          return val[k];
+        }
+      }
+    }
+    return null;
+  };
+
   useEffect(() => {
-    if (Array.isArray(data) && data.length > 0 && typeof data[0] === "object" && data[0] !== null) {
-      setViewMode("table");
+    const list = extractList(data);
+    setListData(list);
+    if (list) {
+      setViewMode("cards"); // Default to Cards view if a list of items is found!
     } else {
       setViewMode("raw");
     }
@@ -24,8 +49,6 @@ export default function FriendlyResponseViewer({ data }: FriendlyResponseViewerP
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const isArrayOfObjects = Array.isArray(data) && data.length > 0 && typeof data[0] === "object" && data[0] !== null;
-
   const renderRaw = () => (
     <pre className="p-4 pb-8 text-2xs text-slate-300 font-mono whitespace-pre-wrap break-words overflow-y-auto max-h-[400px] leading-relaxed">
       {JSON.stringify(data, null, 2)}
@@ -33,11 +56,10 @@ export default function FriendlyResponseViewer({ data }: FriendlyResponseViewerP
   );
 
   const renderTable = () => {
-    if (!isArrayOfObjects) return renderRaw();
+    if (!listData) return renderRaw();
 
-    // Extract unique headers across all objects in array (safely handling sparse objects)
     const headersSet = new Set<string>();
-    data.forEach(item => {
+    listData.forEach(item => {
       if (item && typeof item === "object") {
         Object.keys(item).forEach(k => headersSet.add(k));
       }
@@ -63,7 +85,7 @@ export default function FriendlyResponseViewer({ data }: FriendlyResponseViewerP
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-850 bg-slate-950/40">
-            {data.map((row: any, idx: number) => (
+            {listData.map((row: any, idx: number) => (
               <tr key={idx} className="hover:bg-slate-900/60 transition-colors">
                 {headers.map(h => {
                   const val = row[h];
@@ -76,9 +98,16 @@ export default function FriendlyResponseViewer({ data }: FriendlyResponseViewerP
                     displayVal = String(val);
                   }
 
+                  // If it's an image link in the table, show thumbnail
+                  const isImg = typeof val === "string" && (val.startsWith("http") && (val.match(/\.(jpeg|jpg|gif|png|webp)/i) || h.toLowerCase().includes("image") || h.toLowerCase().includes("img")));
+
                   return (
                     <td key={h} className="px-4 py-3 whitespace-nowrap text-slate-300 font-medium">
-                      {displayVal}
+                      {isImg ? (
+                        <img src={val} alt="thumb" className="w-8 h-8 object-cover rounded bg-slate-950 border border-slate-850" />
+                      ) : (
+                        displayVal
+                      )}
                     </td>
                   );
                 })}
@@ -91,46 +120,102 @@ export default function FriendlyResponseViewer({ data }: FriendlyResponseViewerP
   };
 
   const renderCards = () => {
-    if (!isArrayOfObjects) return renderRaw();
+    if (!listData) return renderRaw();
 
     return (
-      <div className="p-4 overflow-y-auto max-h-[400px] grid grid-cols-1 md:grid-cols-2 gap-4">
-        {data.map((item: any, idx: number) => (
-          <div
-            key={idx}
-            className="bg-slate-900/50 border border-slate-850 rounded-xl p-4 flex flex-col justify-between hover:border-slate-800 transition-all shadow-md"
-          >
-            <div className="space-y-2.5">
-              {Object.entries(item).map(([k, v]) => {
-                let displayVal = "";
-                if (v === undefined || v === null) {
-                  displayVal = "-";
-                } else if (typeof v === "object") {
-                  displayVal = JSON.stringify(v);
-                } else {
-                  displayVal = String(v);
-                }
+      <div className="p-4 overflow-y-auto max-h-[400px] grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {listData.map((item: any, idx: number) => {
+          let title = `Item #${idx + 1}`;
+          let imageVal = "";
+          let linkVal = "";
+          let priceVal = "";
+          const otherParams: [string, any][] = [];
 
-                // If key is a name/title, style it as header
-                const isTitleKey = k.toLowerCase().includes("name") || k.toLowerCase().includes("title") || k.toLowerCase().includes("header");
+          // Parse key values to map visual sections
+          Object.entries(item).forEach(([k, v]) => {
+            const lowerKey = k.toLowerCase();
+            const stringVal = String(v);
 
-                return (
-                  <div key={k} className="flex flex-col">
-                    <span className="text-4xs uppercase tracking-wider text-slate-500 font-mono font-bold">
-                      {k.replace(/_/g, " ")}
-                    </span>
-                    <span className={`${isTitleKey ? "text-2xs font-bold text-white mt-0.5" : "text-3xs text-slate-300 mt-0.5"}`}>
-                      {displayVal}
-                    </span>
+            // 1. Find Title
+            if (lowerKey.includes("name") || lowerKey.includes("title") || lowerKey.includes("heading")) {
+              title = stringVal;
+            }
+            // 2. Find Image URL
+            else if (lowerKey.includes("image") || lowerKey.includes("img") || (stringVal.startsWith("http") && stringVal.match(/\.(jpeg|jpg|gif|png|webp)/i))) {
+              imageVal = stringVal;
+            }
+            // 3. Find Link URL
+            else if (lowerKey.includes("link") || lowerKey.includes("url") || lowerKey.includes("href") || (stringVal.startsWith("http") && !imageVal)) {
+              linkVal = stringVal;
+            }
+            // 4. Find Price
+            else if (lowerKey.includes("price") || lowerKey.includes("cost") || lowerKey.includes("rate") || lowerKey.includes("amount") || stringVal.includes("৳") || stringVal.includes("$")) {
+              priceVal = stringVal;
+            }
+            // 5. General parameters
+            else {
+              otherParams.push([k, v]);
+            }
+          });
+
+          return (
+            <div
+              key={idx}
+              className="bg-slate-900 border border-slate-850 rounded-xl p-4 flex flex-col justify-between hover:border-indigo-500/30 hover:shadow-lg hover:shadow-indigo-500/5 transition-all duration-200"
+            >
+              <div className="flex gap-4">
+                {/* Image Thumbnail */}
+                {imageVal && (
+                  <img
+                    src={imageVal}
+                    alt={title}
+                    onError={(e) => { (e.target as HTMLElement).style.display = "none"; }}
+                    className="w-16 h-16 object-cover rounded-lg bg-slate-950 border border-slate-850 shrink-0"
+                  />
+                )}
+
+                {/* Content */}
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <div className="flex justify-between items-start gap-2">
+                    <h4 className="text-2xs font-bold text-white leading-snug truncate" title={title}>
+                      {title}
+                    </h4>
+                    {priceVal && (
+                      <span className="shrink-0 px-2 py-0.5 bg-emerald-950/60 text-emerald-400 border border-emerald-900/60 rounded text-3xs font-mono font-bold">
+                        {priceVal}
+                      </span>
+                    )}
                   </div>
-                );
-              })}
+
+                  {/* Rest of Key-Values */}
+                  {otherParams.length > 0 && (
+                    <div className="space-y-1 pt-1 border-t border-slate-850/50">
+                      {otherParams.slice(0, 4).map(([k, v]) => (
+                        <div key={k} className="flex justify-between items-center text-3xs gap-4">
+                          <span className="text-slate-500 font-mono text-4xs uppercase tracking-wider">{k.replace(/_/g, " ")}</span>
+                          <span className="text-slate-300 font-medium truncate max-w-[120px]">{String(v)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Button */}
+              {linkVal && (
+                <a
+                  href={linkVal}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3.5 w-full py-1.5 bg-slate-950 hover:bg-indigo-950/40 text-slate-300 hover:text-indigo-400 border border-slate-850 hover:border-indigo-900/40 rounded-lg text-center font-bold text-3xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <span>View Source Link</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
             </div>
-            <div className="mt-3 pt-2.5 border-t border-slate-850/60 flex justify-between items-center text-4xs font-mono text-slate-500">
-              <span>Item #{idx + 1}</span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
@@ -150,7 +235,7 @@ export default function FriendlyResponseViewer({ data }: FriendlyResponseViewerP
             <span>Raw JSON</span>
           </button>
           
-          {isArrayOfObjects && (
+          {listData && (
             <>
               <button
                 onClick={() => setViewMode("table")}
